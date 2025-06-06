@@ -1,3 +1,6 @@
 jsconfig.json
 sty
 libraries/
+node_modules/
+package-lock.json
+package.json
