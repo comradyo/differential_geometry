@@ -13,7 +13,7 @@ class Surface2D: # Parent Class
 
     def get_data_to_draw(self):
         return
-
+    
 class Sphere(Surface2D): # Child Class
     def X(self, u, v):
         return np.cos(u) * np.sin(v)
@@ -83,6 +83,18 @@ class SurfaceWithCollinearVectors(Surface2D):
         Zv = self.Zv(self.U, self.V)
 
         return X,Y,Z,Xu,Yu,Zu,Xv,Yv,Zv
+    
+    def get_coordinate_line_U(self, v):
+        X = self.X(self.U[0], v)
+        Y = self.Y(self.U[0], v)
+        Z = self.Z(self.U[0], v)
+        return X, Y, Z
+    
+    def get_coordinate_line_V(self, u):
+        X = self.X(u, self.V[:, 0])
+        Y = self.Y(u, self.V[:, 0])
+        Z = self.Z(u, self.V[:, 0])
+        return X, Y, Z
 
 #u_start = 0
 #u_end = 2*np.pi
@@ -118,11 +130,23 @@ def update(val):
     x, y, z = surface.X(u, v), surface.Y(u, v), surface.Z(u, v)
     xu, yu, zu = surface.Xu(u, v), surface.Yu(u, v), surface.Zu(u, v)
     xv, yv, zv = surface.Xv(u, v), surface.Yv(u, v), surface.Zv(u, v)
+    # Отрисовка поверхности
     ax1.plot_surface(X, Y, Z, cmap='viridis', alpha=aplha_level)
+    # Отрисовка сетки
     ax1.plot_wireframe(X, Y, Z, color = 'gray', rstride=2, cstride=2, alpha=0.3)
+    # Отрисовка точки на поверхности
     ax1.scatter(x, y, z, marker='o', color='g', linewidths=5)
+    # Отрисовка скоростей в точке
     ax1.quiver(x, y, z, xu, yu, zu, color='red', length=1)
     ax1.quiver(x, y, z, xv, yv, zv, color='blue', length=1)
+    # Отрисовка координатных линий в точке
+    coordLineU = surface.get_coordinate_line_U(v)
+    coordLineV = surface.get_coordinate_line_V(u)
+    ax1.plot(coordLineU[0], coordLineU[1], coordLineU[2], color = 'red', linewidth = 3)
+    ax1.plot(coordLineV[0], coordLineV[1], coordLineV[2], color = 'blue', linewidth = 3)
+    # TODO: Отрисовка касательной плоскости
+    # TODO: Отрисовка нормали
+
     fig.canvas.draw_idle()
 
 u_slider.on_changed(update)
