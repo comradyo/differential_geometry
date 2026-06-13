@@ -54,9 +54,9 @@ def update(val):
 
     # исходная сетка
     for i in range(len(x)):
-        ax1.plot(X[i, :], Y[i, :], 'gray')
+        ax1.plot(X[i, :], Y[i, :], 'gray', alpha=0.3)
     for i in range(len(y)):
-        ax1.plot(X[:, i], Y[:, i], 'gray')
+        ax1.plot(X[:, i], Y[:, i], 'gray', alpha=0.3)
     ax1.set_title("Исходная сетка")
     ax1.set_aspect('equal')
 
@@ -76,10 +76,10 @@ def update(val):
 
     # деформированная сетка
     for i in range(len(x)):
-        ax2.plot(Xt[i, :], Yt[i, :], 'blue', alpha=0.6)
+        ax2.plot(Xt[i, :], Yt[i, :], 'blue', alpha=0.3)
     for i in range(len(y)):
-        ax2.plot(Xt[:, i], Yt[:, i], 'blue', alpha=0.6)
-    ax1.set_title("После отображения")
+        ax2.plot(Xt[:, i], Yt[:, i], 'blue', alpha=0.3)
+    ax2.set_title("После отображения")
     ax2.set_aspect('equal')
 
     p0t = transform(p0[0], p0[1])
@@ -94,7 +94,7 @@ def update(val):
 
     square_transformed = (jacobian(p0[0], p0[1]) @ square.T).T + p0t
     Dxt, Dyt = square_transformed.T.reshape(2, *square_shape)
-    draw_square(ax2, Dxt, Dyt, color='green', alpha=1, lw=2)
+    draw_square(ax2, Dxt, Dyt, color='limegreen', alpha=1, lw=2)
     # Квадрат при применении операции трансформации
     xc = np.linspace(-eps, eps, 10)
     yc = np.linspace(-eps, eps, 10)
