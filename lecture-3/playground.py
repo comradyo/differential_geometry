@@ -1,70 +1,194 @@
-import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.widgets import Slider
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from ipywidgets import interact, FloatSlider
 
-# 1. Setup the figure and subplots
-fig = plt.figure(figsize=(14, 6))
-plt.subplots_adjust(bottom=0.25)  # Leave room at the bottom for sliders
+# -------------------------------
+# Параметризация поверхности
+# -------------------------------
 
-# Left plot: 2D Grid
-ax2d = fig.add_subplot(1, 2, 1)
-ax2d.set_xlim(-3, 3)
-ax2d.set_ylim(-3, 3)
-ax2d.grid(True)
-ax2d.set_title("2D Grid Position")
+def r(u, v):
+    x = u
+    y = v
+    z = np.sin(u) * np.cos(v)
+    return x, y, z
 
-# Right plot: 3D Surface
-ax3d = fig.add_subplot(1, 2, 2, projection='3d')
-ax3d.set_xlim(-3, 3)
-ax3d.set_ylim(-3, 3)
-ax3d.set_zlim(-2, 2)
-ax3d.set_title("3D Surface Position")
 
-# 2. Generate and plot static 3D surface data
-x_range = np.linspace(-3, 3, 50)
-y_range = np.linspace(-3, 3, 50)
-X, Y = np.meshgrid(x_range, y_range)
-# A simple saddle surface function: Z = sin(X) * cos(Y)
-Z = np.sin(X) * np.cos(Y)
-ax3d.plot_surface(X, Y, Z, cmap='viridis', alpha=0.6)
+# -------------------------------
+# Глобальная поверхность
+# -------------------------------
 
-# 3. Initialize the moving dots (starting at X=0, Y=0)
-init_x, init_y = 0.0, 0.0
-init_z = np.sin(init_x) * np.cos(init_y)
+u = np.linspace(-3, 3, 100)
+v = np.linspace(-3, 3, 100)
 
-# Plot initial 2D dot (returns a list, we take the first element)
-dot2d, = ax2d.plot([init_x], [init_y], 'ro', markersize=10, zorder=5)
+U, V = np.meshgrid(u, v)
+X, Y, Z = r(U, V)
 
-# Plot initial 3D dot
-dot3d, = ax3d.plot([init_x], [init_y], [init_z], 'ro', markersize=10, zorder=10)
 
-# 4. Create UI Sliders
-ax_sl_x = plt.axes([0.25, 0.1, 0.5, 0.03])
-ax_sl_y = plt.axes([0.25, 0.05, 0.5, 0.03])
+# -------------------------------
+# Локальная сетка
+# -------------------------------
 
-slider_x = Slider(ax_sl_x, 'X Coordinate', -3.0, 3.0, valinit=init_x)
-slider_y = Slider(ax_sl_y, 'Y Coordinate', -3.0, 3.0, valinit=init_y)
+eps = 0.5
+n_lines = 7
+n_pts = 50
 
-# 5. Define the update function
-def update(val):
-    # Get current slider positions
-    current_x = slider_x.val
-    current_y = slider_y.val
-    # Calculate corresponding Z on the surface
-    current_z = np.sin(current_x) * np.cos(current_y)
-    
-    # Update 2D dot data
-    dot2d.set_data([current_x], [current_y])
-    
-    # Update 3D dot data (3D lines use set_3d_properties for the Z axis)
-    dot3d.set_data([current_x], [current_y])
-    dot3d.set_3d_properties([current_z])
-    
-    # Redraw the canvas to show changes
-    fig.canvas.draw_idle()
+offsets = np.linspace(-eps, eps, n_lines)
+t = np.linspace(-eps, eps, n_pts)
 
-# Link sliders to the update function
-slider_x.on_changed(update)
-slider_y.on_changed(update)
 
-plt.show()
+def make_local_grid(u0, v0):
+    UV_lines = []
+
+    for du in offsets:
+        UV_lines.append((
+            u0 + du*np.ones_like(t),
+            v0 + t
+        ))
+
+    for dv in offsets:
+        UV_lines.append((
+            u0 + t,
+            v0 + dv*np.ones_like(t)
+        ))
+
+    return UV_lines
+
+
+def lines_to_plotly_2d(lines):
+    Xs, Ys = [], []
+
+    for u_line, v_line in lines:
+        Xs.extend(u_line)
+        Ys.extend(v_line)
+
+        Xs.append(None)
+        Ys.append(None)
+
+    return Xs, Ys
+
+
+def lines_to_plotly_3d(lines):
+    Xs, Ys, Zs = [], [], []
+
+    for u_line, v_line in lines:
+        x, y, z = r(u_line, v_line)
+
+        Xs.extend(x)
+        Ys.extend(y)
+        Zs.extend(z)
+
+        Xs.append(None)
+        Ys.append(None)
+        Zs.append(None)
+
+    return Xs, Ys, Zs
+
+
+# -------------------------------
+# Отрисовка
+# -------------------------------
+
+def draw(u0=0.0, v0=0.0):
+
+    grid = make_local_grid(u0, v0)
+
+    uv_x, uv_y = lines_to_plotly_2d(grid)
+    xyz_x, xyz_y, xyz_z = lines_to_plotly_3d(grid)
+
+    px, py, pz = r(u0, v0)
+
+    fig = make_subplots(
+        rows=1,
+        cols=2,
+        specs=[[{"type": "xy"}, {"type": "surface"}]],
+        subplot_titles=("Параметрическая плоскость", "Поверхность")
+    )
+
+    # --------------------------------
+    # Левая картинка (u,v)
+    # --------------------------------
+
+    fig.add_trace(
+        go.Scatter(
+            x=uv_x,
+            y=uv_y,
+            mode="lines",
+            line=dict(color="red")
+        ),
+        row=1,
+        col=1
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=[u0],
+            y=[v0],
+            mode="markers",
+            marker=dict(size=10)
+        ),
+        row=1,
+        col=1
+    )
+
+    # --------------------------------
+    # Правая картинка (поверхность)
+    # --------------------------------
+
+    fig.add_trace(
+        go.Surface(
+            x=X,
+            y=Y,
+            z=Z,
+            opacity=0.7,
+            showscale=False
+        ),
+        row=1,
+        col=2
+    )
+
+    fig.add_trace(
+        go.Scatter3d(
+            x=xyz_x,
+            y=xyz_y,
+            z=xyz_z,
+            mode="lines",
+            line=dict(color="red", width=4)
+        ),
+        row=1,
+        col=2
+    )
+
+    fig.add_trace(
+        go.Scatter3d(
+            x=[px],
+            y=[py],
+            z=[pz],
+            mode="markers",
+            marker=dict(size=5)
+        ),
+        row=1,
+        col=2
+    )
+
+    fig.update_layout(
+        width=1200,
+        height=600,
+        showlegend=False
+    )
+
+    fig.update_yaxes(
+        scaleanchor="x",
+        scaleratio=1,
+        row=1,
+        col=1
+    )
+
+    fig.show()
+
+
+interact(
+    draw,
+    u0=FloatSlider(min=-3, max=3, step=0.05, value=0),
+    v0=FloatSlider(min=-3, max=3, step=0.05, value=0)
+);

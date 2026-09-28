@@ -18,8 +18,33 @@ class Surface2D: # Parent Class
     def get_data_to_draw(self):
         return
     
-    def transform_dot(self,u,v):
-        return
+    def transform(self, u, v):
+        return self.X(u, v), self.Y(u, v), self.Z(u, v)
+    
+    def jacobian(self, u, v):
+        return np.array([
+            [self.Xu(u, v), self.Xv(u, v)],
+            [self.Yu(u, v), self.Yv(u, v)],
+            [self.Zu(u, v), self.Zv(u, v)],
+        ])
+
+    def normal(self, u, v):
+        du = np.array([self.Xu(u, v), self.Yu(u, v), self.Zu(u, v)])
+        dv = np.array([self.Xv(u, v), self.Yv(u, v), self.Zv(u, v)])
+        return np.cross(du, dv)
+    
+    def get_data_to_draw(self):
+        X = self.X(self.U, self.V)
+        Y = self.Y(self.U, self.V)
+        Z = self.Z(self.U, self.V)
+        Xu = self.Xu(self.U, self.V)
+        Yu = self.Yu(self.U, self.V)
+        Zu = self.Zu(self.U, self.V)
+        Xv = self.Xv(self.U, self.V)
+        Yv = self.Yv(self.U, self.V)
+        Zv = self.Zv(self.U, self.V)
+
+        return self.U,self.V,X,Y,Z,Xu,Yu,Zu,Xv,Yv,Zv
 
 class Sphere(Surface2D):
     def X(self, u, v):
@@ -42,22 +67,28 @@ class Sphere(Surface2D):
         return np.sin(u) * np.cos(v)
     def Zv(self, u, v):
         return np.ones_like(u) * -np.sin(v)
-    
-    def get_data_to_draw(self):
-        X = self.X(self.U, self.V)
-        Y = self.Y(self.U, self.V)
-        Z = self.Z(self.U, self.V)
-        Xu = self.Xu(self.U, self.V)
-        Yu = self.Yu(self.U, self.V)
-        Zu = self.Zu(self.U, self.V)
-        Xv = self.Xv(self.U, self.V)
-        Yv = self.Yv(self.U, self.V)
-        Zv = self.Zv(self.U, self.V)
 
-        return self.U,self.V,X,Y,Z,Xu,Yu,Zu,Xv,Yv,Zv
-    
-    def transform_dot(self, u, v):
-        return self.X(u, v), self.Y(u, v), self.Z(u, v)
+class SurfaceWithCollinearVectors(Surface2D):
+    def X(self, u, v):
+        return u**2/2 + u*v - v**2/2
+    def Y(self, u, v):
+        return u**2/2 + u*v + v**3/3
+    def Z(self, u, v):
+        return u + np.sin(v)
+    # частные производные по u
+    def Xu(self, u, v):
+        return u+v
+    def Yu(self, u, v):
+        return u+v
+    def Zu(self, u, v):
+        return np.ones_like(u)
+    # частные производные по v
+    def Xv(self, u, v):
+        return u-v
+    def Yv(self, u, v):
+        return u + v**2
+    def Zv(self, u, v):
+        return np.ones_like(u) * np.cos(v)
 
 u_min=0
 u_max=2*np.pi
@@ -66,6 +97,14 @@ v_max=np.pi
 num_of_u=20
 num_of_v=20
 surface = Sphere(u_min, u_max, num_of_u, v_min, v_max, num_of_v)
+
+#u_min = -5
+#u_max = 5
+#v_min=-5
+#v_max=5
+#num_of_u=40
+#num_of_v=40
+#surface = SurfaceWithCollinearVectors(u_min, u_max, num_of_u, v_min, v_max, num_of_v)
 
 U, V, X, Y, Z, Xu, Yu, Zu, Xv, Yv, Zv = surface.get_data_to_draw()
 
@@ -91,21 +130,58 @@ for i in range(num_of_v):
     ax1.plot(U[:, i], V[:, i], 'gray', alpha=0.3)
 ax1.set_title("Исходная сетка")
 ax1.set_aspect('equal')
+ax1.set_xlabel('Ось U', fontsize=12, color='red')
+ax1.set_ylabel('Ось V', fontsize=12, color='green')
 
 # Отрисовка преобразованной сетки
 ax2.plot_surface(X, Y, Z, cmap='viridis', alpha=0.6)
 ax2.set_title("После отображения")
 ax2.set_aspect('equal')
+ax2.set_xlabel('Ось X', fontsize=12, color='red')
+ax2.set_ylabel('Ось Y', fontsize=12, color='green')
+ax2.set_zlabel('Ось Z', fontsize=12, color='blue', labelpad=10)
 
-vec_u = ax2.quiver(0, 0, 0, 0, 0, 0, color='blue')
+vec_u = ax2.quiver(0, 0, 0, 0, 0, 0, color='red')
 vec_v = ax2.quiver(0, 0, 0, 0, 0, 0, color='blue')
+vec_normal = ax2.quiver(0, 0, 0, 0, 0, 0, color='green')
+
+eps = 0.4
+u_square = np.linspace(-eps, eps, 5)
+v_square = np.linspace(-eps, eps, 5)
+# Квадрат 
+Du, Dv = np.meshgrid(u_square, v_square)
+Dx, Dy, Dz = surface.transform(Du, Dv)
+
+grid_lines = []
+
+for i in range(len(Du)):
+    line, = ax1.plot([], [], color='red')
+    grid_lines.append(line)
+
+for i in range(len(Dv)):
+    line, = ax1.plot([], [], color='red')
+    grid_lines.append(line)
+
+grid_lines_3d = []
+
+for i in range(len(Dx)):
+    line, = ax2.plot([], [], color='red')
+    grid_lines_3d.append(line)
+
+for i in range(len(Dy)):
+    line, = ax2.plot([], [], color='red')
+    grid_lines_3d.append(line)
+
+for i in range(len(Dz)):
+    line, = ax2.plot([], [], color='red')
+    grid_lines_3d.append(line)
 
 # Update function
 def update(val):
     u = u_slider.val
     v = v_slider.val
     p0 = [u, v]
-    p0t = surface.transform_dot(p0[0], p0[1])
+    p0t = surface.transform(p0[0], p0[1])
 
     dot2d.set_data([p0[0]], [p0[1]])
 
@@ -118,15 +194,68 @@ def update(val):
 
     global vec_u # чтобы использовалсь существующая переменная, объявленная вне этой функции
     global vec_v
+    global vec_normal
     
     # 1. Стираем старый вектор, если он существует
     if vec_u is not None:
         vec_u.remove()
     if vec_v is not None:
         vec_v.remove()
+    if vec_normal is not None:
+        vec_normal.remove()
 
     vec_u=ax2.quiver(x, y, z, xu, yu, zu, color='red')
     vec_v=ax2.quiver(x, y, z, xv, yv, zv, color='blue')
+
+    # Отрисовка квадрата
+    # Квадрат вокруг точки
+    U_square = p0[0] + Du
+    V_square = p0[1] + Dv
+
+    k = 0
+
+    for i in range(len(U_square)):
+        grid_lines[k].set_data(
+            U_square[i, :],
+            V_square[i, :]
+        )
+        k += 1
+
+    for i in range(len(V_square)):
+        grid_lines[k].set_data(
+            U_square[:, i],
+            V_square[:, i]
+        )
+        k += 1
+    
+    # Преобразованный квадрат:
+    X_square, Y_square, Z_square = surface.transform(U_square, V_square)
+
+    k = 0
+
+    for i in range(X_square.shape[0]):
+        grid_lines_3d[k].set_data(
+            X_square[i, :],
+            Y_square[i, :]
+        )
+        grid_lines_3d[k].set_3d_properties(
+            Z_square[i, :]
+        )
+        k += 1
+
+    for i in range(X_square.shape[1]):
+        grid_lines_3d[k].set_data(
+            X_square[:, i],
+            Y_square[:, i]
+        )
+        grid_lines_3d[k].set_3d_properties(
+            Z_square[:, i]
+        )
+        k += 1
+
+    # Отрисовка нормали плоскости
+    norm = surface.normal(u, v)
+    vec_normal=ax2.quiver(x, y, z, norm[0], norm[1], norm[2], color='green')
 
     fig.canvas.draw_idle()
 
