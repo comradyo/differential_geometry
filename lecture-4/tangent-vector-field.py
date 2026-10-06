@@ -4,6 +4,15 @@ from matplotlib.widgets import Slider
 import sys
 
 # Касательное векторное поле
+# 5.1. Касательное гладкое векторное поле - задать его, отрисовать, 
+# в каждой точке раскладывать вектор из этого касательного векторного поля по каноническому базису
+# можно отрисовать штрихпунктиром проекции на базис
+
+# Отрисовать проекцию
+# Отрисовывать вектор, вдоль которого будем двигаться
+# Отрисовывать кривую, вдоль которой будет двигаться точка, и вектор её скорости
+
+# Перенос вдоль кривых тут или отдельным файлом?
 
 class Surface2D: # Parent Class
     def __init__(self, u_start, u_end, num_of_u_points, v_start, v_end, num_of_v_points):
@@ -25,10 +34,21 @@ class Surface2D: # Parent Class
         ])
 
     def normal(self, u, v):
-        du = np.array([self.Xu(u, v), self.Yu(u, v), self.Zu(u, v)])
-        dv = np.array([self.Xv(u, v), self.Yv(u, v), self.Zv(u, v)])
-        return np.cross(du, dv)
-    
+        return np.cross(self.r_u(u, v), self.r_v(u, v))
+
+    def r_u(self, u, v):
+        return (self.Xu(u, v), self.Yu(u, v), self.Zu(u, v))
+    def r_v(self, u, v):
+        return (self.Xv(u, v), self.Yv(u, v), self.Zv(u, v))
+    def r_uu(self, u, v):
+        return (self.Xuu(u, v), self.Yuu(u, v), self.Zuu(u, v))
+    def r_uv(self, u, v):
+        return (self.Xuv(u, v), self.Yuv(u, v), self.Zuv(u, v))
+    def r_vu(self, u, v):
+        return (self.Xvu(u, v), self.Yvu(u, v), self.Zvu(u, v))
+    def r_vv(self, u, v):
+        return (self.Xvv(u, v), self.Yvv(u, v), self.Zvv(u, v))
+
     def get_data_to_draw(self):
         X = self.X(self.U, self.V)
         Y = self.Y(self.U, self.V)
@@ -63,6 +83,32 @@ class Sphere(Surface2D):
         return np.sin(u) * np.cos(v)
     def Zv(self, u, v):
         return np.ones_like(u) * -np.sin(v)
+    # Вторые частные производные по u
+    def Xuu(self, u, v):
+        return -np.cos(u) * np.sin(v)
+    def Yuu(self, u, v):
+        return -np.sin(u) * np.sin(v)
+    def Zuu(self, u, v):
+        return np.zeros_like(u)
+    def Xvu(self, u, v):
+        return -np.sin(u) * np.cos(v)
+    def Yvu(self, u, v):
+        return np.cos(u) * np.cos(v)
+    def Zvu(self, u, v):
+        return np.zeros_like(u)
+    # Вторые частные производные по v
+    def Xuv(self, u, v):
+        return -np.sin(u) * np.cos(v)
+    def Yuv(self, u, v):
+        return np.cos(u) * np.cos(v)
+    def Zuv(self, u, v):
+        return np.zeros_like(u)
+    def Xvv(self, u, v):
+        return -np.cos(u) * np.sin(v)
+    def Yvv(self, u, v):
+        return -np.sin(u) * np.sin(v)
+    def Zvv(self, u, v):
+        return np.ones_like(u) * -np.cos(v)
 
 u_min=0
 u_max=2*np.pi
@@ -77,13 +123,33 @@ U, V, X, Y, Z, Xu, Yu, Zu, Xv, Yv, Zv = surface.get_data_to_draw()
 # Касательное векторное поле
 def xi_u(u, v):
     return np.sin(u) + np.cos(v)
+def d_xi_u_d_u(u, v):
+    return np.cos(u)
+def d_xi_u_d_v(u, v):
+    return -np.sin(v)
 def xi_v(u, v):
     return np.sin(u) * np.cos(v)
+def d_xi_v_d_u(u, v):
+    return np.cos(u) * np.cos(v)
+def d_xi_v_d_v(u, v):
+    return -np.sin(u) * np.sin(v)
 def xi(u, v, r_u, r_v):
     return (
         xi_u(u, v) * r_u[0] + xi_v(u, v) * r_v[0],
         xi_u(u, v) * r_u[1] + xi_v(u, v) * r_v[1],
         xi_u(u, v) * r_u[2] + xi_v(u, v) * r_v[2],
+    )
+def d_xi_d_u(u, v, ru, rv, r_uu, r_vu):    
+    return (
+        d_xi_u_d_u(u, v) * ru[0] + d_xi_u_d_u(u, v) * rv[0] + xi_u(u, v) * r_uu[0] + xi_v(u, v) * r_vu[0],
+        d_xi_u_d_u(u, v) * ru[1] + d_xi_u_d_u(u, v) * rv[1] + xi_u(u, v) * r_uu[1] + xi_v(u, v) * r_vu[1],
+        d_xi_u_d_u(u, v) * ru[2] + d_xi_u_d_u(u, v) * rv[2] + xi_u(u, v) * r_uu[2] + xi_v(u, v) * r_vu[2],
+    )
+def d_xi_d_v(u, v, ru, rv, r_uv, r_vv):    
+    return (
+        d_xi_u_d_v(u, v) * ru[0] + d_xi_u_d_v(u, v) * rv[0] + xi_u(u, v) * r_uv[0] + xi_v(u, v) * r_vv[0],
+        d_xi_u_d_v(u, v) * ru[0] + d_xi_u_d_v(u, v) * rv[0] + xi_u(u, v) * r_uv[1] + xi_v(u, v) * r_vv[1],
+        d_xi_u_d_v(u, v) * ru[0] + d_xi_u_d_v(u, v) * rv[0] + xi_u(u, v) * r_uv[2] + xi_v(u, v) * r_vv[2],
     )
 
 # Фигуры
@@ -112,7 +178,7 @@ ax1.set_xlabel('Ось U', fontsize=12, color='red')
 ax1.set_ylabel('Ось V', fontsize=12, color='green')
 
 # Отрисовка преобразованной сетки
-ax2.plot_surface(X, Y, Z, cmap='viridis', alpha=1, shade=True)
+ax2.plot_surface(X, Y, Z, cmap='viridis', alpha=0.0)
 #ax2.plot_wireframe(X, Y, Z, color = 'gray')
 ax2.set_title("После отображения")
 ax2.set_aspect('equal')
@@ -125,6 +191,9 @@ vec_v = ax2.quiver(0, 0, 0, 0, 0, 0, color='blue')
 vec_normal = ax2.quiver(0, 0, 0, 0, 0, 0, color='green')
 # векторное поле в точке
 vec_xi = ax2.quiver(0, 0, 0, 0, 0, 0, color='pink')
+# Куда тянет вектор векторного поля (без проекции на касательную плоскость)
+vec_xi_u = ax2.quiver(0, 0, 0, 0, 0, 0, color='red')
+vec_xi_v = ax2.quiver(0, 0, 0, 0, 0, 0, color='blue')
 
 # Отрисовка касательного поля
 step = 1
@@ -134,7 +203,8 @@ X_xi, Y_xi, Z_xi = xi(U, V, (Xu, Yu, Zu), (Xv, Yv, Zv))
 ax2.quiver(
     X[::step, ::step], Y[::step, ::step], Z[::step, ::step], 
     X_xi[::step, ::step], Y_xi[::step, ::step], Z_xi[::step, ::step], 
-    color='magenta', length=length, normalize=should_normalize, alpha=0,
+    color='magenta', length=length, normalize=should_normalize, 
+    alpha=0.3,
 )
 
 # Update function
@@ -153,10 +223,14 @@ def update(val):
     xu, yu, zu = surface.Xu(u, v), surface.Yu(u, v), surface.Zu(u, v)
     xv, yv, zv = surface.Xv(u, v), surface.Yv(u, v), surface.Zv(u, v)
     x_xi, y_xi, z_xi = xi(u, v, (xu, yu, zu), (xv, yv, zv))
+    x_xi_u, y_xi_u, z_xi_u = d_xi_d_u(u, v, surface.r_u(u, v), surface.r_v(u, v),  surface.r_uu(u, v), surface.r_vu(u, v))
+    x_xi_v, y_xi_v, z_xi_v = d_xi_d_v(u, v, surface.r_u(u, v), surface.r_v(u, v), surface.r_uv(u, v), surface.r_vv(u, v))
 
     global vec_u # чтобы использовалсь существующая переменная, объявленная вне этой функции
     global vec_v
     global vec_xi
+    global vec_xi_u
+    global vec_xi_v
     
     # 1. Стираем старый вектор, если он существует
     if vec_u is not None:
@@ -165,10 +239,16 @@ def update(val):
         vec_v.remove()
     if vec_xi is not None:
         vec_xi.remove()
+    if vec_xi_u is not None:
+        vec_xi_u.remove()
+    if vec_xi_v is not None:
+        vec_xi_v.remove()
 
     vec_u=ax2.quiver(x, y, z, xu, yu, zu, color='red')
     vec_v=ax2.quiver(x, y, z, xv, yv, zv, color='blue')
     vec_xi=ax2.quiver(x, y, z, x_xi, y_xi, z_xi, color='purple')
+    vec_xi_u=ax2.quiver(x + x_xi, y + y_xi, z + z_xi, x_xi_u, y_xi_u, z_xi_u, color='red', linestyle='dashed')
+    vec_xi_v=ax2.quiver(x + x_xi, y + y_xi, z + z_xi, x_xi_v, y_xi_v, z_xi_v, color='blue', linestyle='dashed')
 
     fig.canvas.draw_idle()
 
