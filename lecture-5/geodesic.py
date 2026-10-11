@@ -441,6 +441,7 @@ vec_xi_0 = ax2.quiver(0, 0, 0, 0, 0, 0, color="red")
 vec_xi_t = ax2.quiver(0, 0, 0, 0, 0, 0, color="magenta")
 
 # Геодезическая
+geodesic2D, = ax1.plot([], [], color="green", linestyle="dashed")
 geodesic, = ax2.plot([], [], [], color="green", linestyle="dashed")
 
 
@@ -527,6 +528,7 @@ def update(val):
         color="magenta",
         linestyle="dashed",
     )
+    geodesic2D.set_data(gamma_dots_u, gamma_dots_v)
     geodesic.set_data_3d(gamma_dots_3d_x, gamma_dots_3d_y, gamma_dots_3d_z)
 
     fig.canvas.draw_idle()
