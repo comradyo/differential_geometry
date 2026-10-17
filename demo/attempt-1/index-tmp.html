@@ -1,0 +1,31 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Мой первый Canvas</title>
+</head>
+<body>
+  <canvas id="screen" width="600" height="300"></canvas>
+
+  <script>
+    // 1. Находим холст
+    const canvas = document.getElementById("screen");
+
+    // 2. Получаем инструмент для рисования
+    const ctx = canvas.getContext("2d");
+
+    // 3. Создаём градиент сверху вниз
+    const gradient = ctx.createLinearGradient(
+      0, 0, 0, canvas.height
+    );
+
+    gradient.addColorStop(0, "blue");
+    gradient.addColorStop(1, "orange");
+
+    // 4. Заливаем холст градиентом
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  </script>
+</body>
+</html>
