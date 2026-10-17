@@ -1,4 +1,4 @@
-
+import numpy as np
 
 # Система параллельного переноса (для момента времени t)
 def parallel_translation_system(t, xi, curve_func, curve_dt_func, christoffel_func):
@@ -52,3 +52,28 @@ def geodesic_system(t, Y, christoffel_func):
     )
 
     return [dot_u, dot_v, ddot_u, ddot_v]
+
+# Векторная проекция вектора vec_arg на вектор vec_to
+def projection(vec_arg, vec_to):
+    return vec_to * np.dot(vec_arg, vec_to) / np.dot(vec_to, vec_to)
+
+# Угол между векторами в радианах
+def angle(vec_1, vec_2):
+    cos_angle = np.dot(vec_1, vec_2) / (np.linalg.norm(vec_1, vec_2) * np.linalg.norm(vec_2))
+    return np.arccos(cos_angle)
+
+# Разложение вектора vec по базису vec_e1, vec_e2
+def decomposition(vec, vec_e1, vec_e2):
+    # Если вектор раскладывается по базису, то он записывается в виде v = a*e1 + b*e2. 
+    # Это можно расписать покоординатно и получить систему - 3 уравнение, 2 неизвестных. 
+    # Если взять первые 2 уравнения, их можно решить методом Крамера.
+    # TODO: разобрать, понять метод Крамера
+    det = vec_e1[0] * vec_e2[1] - vec_e2[0] * vec_e1[1]
+    det_e1_u = vec[0] * vec_e2[1] - vec_e2[0] * vec[1]
+    det_e1_v = vec_e1[0] * vec[1] - vec_e1[1] * vec[0]
+    # Координаты e1 в базисе ru_norm, rv_norm
+    coord_e1 = det_e1_u / det
+    coord_e2 = det_e1_v / det
+
+    return np.array([coord_e1, coord_e2])
+
