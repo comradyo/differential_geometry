@@ -275,4 +275,90 @@ class SurfaceWithCollinearVectors(Surface2D):
     def Zvv(self, u, v):
         return -np.sin(v)
 
-# TODO: тор (бублик)
+# TODO: тор, конус, гипербола
+
+# Плоскость
+class Plane(Surface2D):
+    def X(self, u, v):
+        return u
+
+    def Y(self, u, v):
+        return v
+
+    def Z(self, u, v):
+        return np.zeros_like(u)
+
+    # Частные производные по u
+    def Xu(self, u, v):
+        return np.ones_like(u)
+
+    def Yu(self, u, v):
+        return np.zeros_like(0)
+
+    def Zu(self, u, v):
+        return np.zeros_like(u)
+
+    # Частные производные по v
+    def Xv(self, u, v):
+        return np.zeros_like(v)
+
+    def Yv(self, u, v):
+        return np.ones_like(v)
+
+    def Zv(self, u, v):
+        return np.zeros_like(v)
+
+    # Вторые частные производные по u
+    def Xuu(self, u, v):
+        return np.zeros_like(u)
+
+    def Yuu(self, u, v):
+        return np.zeros_like(u)
+
+    def Zuu(self, u, v):
+        return np.zeros_like(u)
+
+    def Xvu(self, u, v):
+        return np.zeros_like(u)
+
+    def Yvu(self, u, v):
+        return np.zeros_like(u)
+
+    def Zvu(self, u, v):
+        return np.zeros_like(u)
+
+    # Вторые частные производные по v
+    def Xuv(self, u, v):
+        return np.zeros_like(u)
+
+    def Yuv(self, u, v):
+        return np.zeros_like(u)
+
+    def Zuv(self, u, v):
+        return np.zeros_like(u)
+
+    def Xvv(self, u, v):
+        return np.zeros_like(u)
+
+    def Yvv(self, u, v):
+        return np.zeros_like(u)
+
+    def Zvv(self, u, v):
+        return np.zeros_like(u)
+
+    def G(self, u, v):
+        return np.array(
+            [
+                [1, 0],
+                [0, 1],
+            ]
+        )
+
+    def G_inverse(self, u, v):
+        # 0.000001 - костыль для избежания деления на 0
+        return np.array(
+            [
+                [1, 0],
+                [0, 1],
+            ]
+        )
