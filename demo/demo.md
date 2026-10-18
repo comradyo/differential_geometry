@@ -85,6 +85,30 @@ npx http-server .
 
 Терминал выдаст ссылку вида `http://localhost:3000` (или 8080), по ней нужно перейти.
 
+Так, ещё нужно установить `vite` — какой-то инструмент для удобной разработки, 
+это позволяет импортировать библиотеки более удонбным способом.
+
+```bash
+npm install vite --save-dev
+```
+
+В коде импорт библиотеки тогда будет выглядеть следующим образом:
+```js
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+```
+
+Также в `package.json` нужно добавить:
+```json
+  "scripts": {
+    "dev": "vite"
+  }
+```
+
+И запуск приложения: 
+```bash
+npm run dev
+```
 
 ------------------
 
