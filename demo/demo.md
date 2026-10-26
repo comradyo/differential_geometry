@@ -110,6 +110,28 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 npm run dev
 ```
 
+#### Свои модули
+
+Для того, чтобы можно было использовать класс или функцию из файла/модуля (это одно и то же?), нужно использовать ключевое слово `export` перед описанием этого объекта:
+
+```js
+// Файл calculations.js
+
+export function vectorNorm(vector) {
+  const sumOfSquares = vector.reduce((acc, val) => acc + val * val, 0);
+  return Math.sqrt(sumOfSquares);
+}
+```
+
+В файле, в котором планируется использование этого объекта, необходимо выполнить импорт этого модуля:
+```js
+import * as calculations from './calculations.js';
+
+// some code
+
+calculations.vectorNorm(some_vector);
+```
+
 ------------------
 
 Помощь по JS:
@@ -223,3 +245,66 @@ function setPixel(x, y, r, g, b, a = 255) {
 // Использование:
 setPixel(10, 10, 255, 99, 71); 
 ```
+
+#### Как отрисовать вектор?
+
+```js
+// Направление вектора в 3D (обязан быть нормализован!)
+const dir = new THREE.Vector3(dirX, dirY, dirZ).normalize();
+
+// Точка начала вектора (совпадает с позицией игрока)
+const origin = new THREE.Vector3(playerX, playerY, playerZ);
+
+const length = 0.3; // длина стрелочки
+const color = 0xffff00; // желтый цвет
+
+const arrowHelper = new THREE.ArrowHelper(dir, origin, length, color);
+scene.add(arrowHelper);
+
+// Обновление в цикле animate():
+// arrowHelper.position.copy(origin); // сдвигаем за игроком
+// arrowHelper.setDirection(newDir.normalize()); // меняем направление
+```
+
+
+#### ООП
+
+##### Конструктор класса
+
+Конструктор класса в JavaScript — это специальный метод `constructor()`, который автоматически вызывается при создании нового экземпляра (объекта) через оператор `new` и служит для инициализации его свойств. Если в конструкторе базового и дочернего классов нет никакой логики, описывать их не обязательно.
+
+```js
+class User {
+  // Конструктор класса
+  constructor(name, age) {
+    this.name = name; // создание свойств объекта
+    this.age = age;
+  }
+
+  sayHello() {
+    console.log(`Привет, меня зовут ${this.name}`);
+  }
+}
+
+// Создание экземпляра через new
+const user1 = new User('Иван', 25);
+user1.sayHello(); // Привет, меня зовут Иван
+```
+
+##### Полиморфизм
+
+В родительском классе может быть определён метод `B()`, вызывающий метод `A()`. Тогда при создании объекта дочернего класса и вызове у этого объекта метода `B()`, внутри будет вызываться метод `A()` именно дочернего класса. При этом, нужно использовать ключевое слово `this`.
+
+```js
+class Parent {
+    A() {return;}
+    B() {return this.A();}
+}
+
+class Child extends Parent {
+    A() {return 10;}
+}
+
+```
+
+

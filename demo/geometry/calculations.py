@@ -59,7 +59,7 @@ def projection(vec_arg, vec_to):
 
 # Угол между векторами в радианах
 def angle(vec_1, vec_2):
-    cos_angle = np.dot(vec_1, vec_2) / (np.linalg.norm(vec_1, vec_2) * np.linalg.norm(vec_2))
+    cos_angle = np.dot(vec_1, vec_2) / (np.linalg.norm(vec_1) * np.linalg.norm(vec_2))
     return np.arccos(cos_angle)
 
 # Разложение вектора vec по базису vec_e1, vec_e2
