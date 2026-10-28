@@ -24,6 +24,8 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, (window.innerWidth / 2) / window.innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 
+camera.position.z = 3;
+
 // Задаем размер рендерера ровно под левое окно
 renderer.setSize(window.innerWidth / 2, window.innerHeight);
 leftContainer.appendChild(renderer.domElement);
@@ -51,44 +53,6 @@ const surfaceMaterial = new THREE.MeshBasicMaterial({ map: earthTexture });
 const sphereMesh = new THREE.Mesh(sphereGeometry, surfaceMaterial);
 scene.add(sphereMesh);
 
-// Точки для геодезической
-// TODO: это где-то здесь нужно создать массив и потом его постепенно заполнять?
-const geodesicPoints = [];
-const geodesicPointsCount = 100;
-geodesicPoints.length = geodesicPointsCount;
-
-// Создаем геометрию линии из массива точек
-const lineGeometry = new THREE.BufferGeometry();
-
-// Создаем материал линии (толщина линии в WebGL на большинстве карт всегда 1 пиксель)
-// TODO: толщина линии, пунктир
-const lineMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
-
-// Объединяем и добавляем
-const geodesicLine = new THREE.Line(lineGeometry, lineMaterial);
-scene.add(geodesicLine);
-
-function calculateGeodesic(u, v, vec_ru, vec_rv, vec_view, surface) {
-  //console.log(u, v, vec_ru, vec_rv, vec_view);
-  let vec_view_decomp = vectors.decomposition(vec_view, vec_ru, vec_rv);
-
-  let currentRayState = [u, v, vec_view_decomp[0], vec_view_decomp[1]];
-
-  // TODO: мб делать не число шагов, а длину?
-  for (let i = 0; i < geodesicPointsCount; i++) {
-    currentRayState = calculations.rk4Step(currentRayState, 0.05, surface);
-    let coords = surface.transform(currentRayState[0], currentRayState[1]);
-    geodesicPoints[i] =  new THREE.Vector3(coords[0], coords[1], coords[2]);
-
-    // Тут же можно проверять пересечение луча со стенами/объектами
-  }
-
-  // Проверить, нужно ли
-  lineGeometry.setFromPoints(geodesicPoints);
-}
-
-camera.position.z = 3;
-
 // Камера на поверхности
 const playerGeometry = new THREE.SphereGeometry(0.03, 16, 16);
 const playerMaterial = new THREE.MeshBasicMaterial({ color: "red" });
@@ -112,6 +76,35 @@ const arrow_Oy = new Arrow([0, 0, 0], [0, 10, 0], "green", 0.05, 0.05);
 const arrow_Oz = new Arrow([0, 0, 0], [0, 0, 10], "blue", 0.05, 0.05);
 scene.add(arrow_Ox, arrow_Oy, arrow_Oz);
 ////////////////
+
+// Создаем геометрию линии из массива точек
+const lineGeometry = new THREE.BufferGeometry();
+// Создаем материал линии (толщина линии в WebGL на большинстве карт всегда 1 пиксель)
+// TODO: толщина линии, пунктир
+const lineMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
+// Объединяем и добавляем
+const geodesicLine = new THREE.Line(lineGeometry, lineMaterial);
+scene.add(geodesicLine);
+
+// Точки для геодезической
+const geodesicPoints = [];
+const geodesicPointsCount = 100;
+geodesicPoints.length = geodesicPointsCount;
+
+function calculateGeodesic(u, v, vec_ru, vec_rv, vec_view, surface) {
+  let vec_view_decomp = vectors.decomposition(vec_view, vec_ru, vec_rv);
+  let currentRayState = [u, v, vec_view_decomp[0], vec_view_decomp[1]];
+  // TODO: мб делать не число шагов, а длину?
+  for (let i = 0; i < geodesicPointsCount; i++) {
+    currentRayState = calculations.rk4Step(currentRayState, 0.05, surface);
+    let coords = surface.transform(currentRayState[0], currentRayState[1]);
+    geodesicPoints[i] =  new THREE.Vector3(coords[0], coords[1], coords[2]);
+
+    // Тут же можно проверять пересечение луча со стенами/объектами
+  }
+
+  lineGeometry.setFromPoints(geodesicPoints);
+}
 
 // --- 2. НАСТРОЙКА ПРАВОГО ОКНА (2D Canvas) ---
 /** @type {HTMLCanvasElement} */
