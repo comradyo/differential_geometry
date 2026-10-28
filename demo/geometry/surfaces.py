@@ -293,7 +293,7 @@ class Plane(Surface2D):
         return np.ones_like(u)
 
     def Yu(self, u, v):
-        return np.zeros_like(0)
+        return np.zeros_like(u)
 
     def Zu(self, u, v):
         return np.zeros_like(u)
@@ -355,7 +355,6 @@ class Plane(Surface2D):
         )
 
     def G_inverse(self, u, v):
-        # 0.000001 - костыль для избежания деления на 0
         return np.array(
             [
                 [1, 0],

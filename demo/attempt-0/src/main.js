@@ -14,11 +14,12 @@ let mouseY = 0;
 let fov_angle_degrees = 60.0;
 let fov_angle = Math.PI * fov_angle_degrees / 180.0;
 // Число геодезических, которые будут отрисовываны на 3D изображении
-const numOfGeodesicLines = 10;
+const numOfGeodesicLines = 9;
 let delta_fov_angle = fov_angle / numOfGeodesicLines;
 
 const surface = new surfaces.Sphere();
 const camera = new cameras.Camera(fov_angle, surface);
+camera.setCoords(0, 0.1);
 
 // --- 1. НАСТРОЙКА ЛЕВОГО ОКНА (Three.js) ---
 const leftContainer = document.getElementById('left-window');
@@ -28,7 +29,8 @@ const scene = new THREE.Scene();
 const threeCamera = new THREE.PerspectiveCamera(75, (window.innerWidth / 2) / window.innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 
-threeCamera.position.z = 3;
+threeCamera.position.set(2, 2, 2);
+threeCamera.up.set(0, 0, 1); // Z — это верх
 
 // Задаем размер рендерера ровно под левое окно
 renderer.setSize(window.innerWidth / 2, window.innerHeight);
@@ -42,6 +44,7 @@ controls.dampingFactor = 0.05;
 
 // 1. Создаем каркас сферы (радиус, сегменты по u, сегменты по v)
 const sphereGeometry = new THREE.SphereGeometry(1, 64, 64);
+sphereGeometry.rotateX(Math.PI / 2); // Нужно для того, чтобы полюса были на оси z.
 
 // 2. Создаем материал
 // Вариант А: Обычная сетка (как plot_wireframe)
@@ -72,6 +75,20 @@ scene.add(arrow_r_u);
 scene.add(arrow_r_v);
 const arrow_e1 = new Arrow([0, 0, 0], [0, 0, 1], "red", 0.05, 0.05);
 const arrow_e2 = new Arrow([0, 0, 0], [0, 0, 1], "blue", 0.05, 0.05);
+arrow_e1.line.material = new THREE.LineDashedMaterial({
+    color: "red",
+    dashSize: 0.1,  // Длина самого штриха
+    gapSize: 0.1,   // Длина пропуска между штрихами
+    scale: 1        // Масштаб пунктира
+});
+arrow_e1.line.computeLineDistances(); 
+arrow_e2.line.material = new THREE.LineDashedMaterial({
+    color: "blue",
+    dashSize: 0.1,  // Длина самого штриха
+    gapSize: 0.1,   // Длина пропуска между штрихами
+    scale: 1        // Масштаб пунктира
+});
+arrow_e2.line.computeLineDistances(); 
 scene.add(arrow_e1);
 scene.add(arrow_e2);
 
@@ -100,12 +117,12 @@ const geodesicPoints = [];
 const geodesicPointsCount = 100;
 geodesicPoints.length = geodesicPointsCount;
 
-// Для каждой геометрии линии заранее создаем типизированный массив под числа X,Y,Z
-const positionBuffers = [];
+// Для каждой геодезической линии заранее создаем типизированный массив под числа X,Y,Z
+const geodesicPositionBuffers = [];
 for (let i = 0; i < numOfGeodesicLines; i++) {
   // Выделяем память: по 3 числа (X,Y,Z) на каждую точку
   const floatArray = new Float32Array(geodesicPointsCount * 3);
-  positionBuffers.push(floatArray);
+  geodesicPositionBuffers.push(floatArray);
 
   // Привязываем этот массив к геометрии один раз
   lineGeometries[i].setAttribute('position', new THREE.BufferAttribute(floatArray, 3));
@@ -121,7 +138,8 @@ function calculateGeodesics(camera, surface) {
   let v = camera.v;
   let view_norm = vec_view.norm();
 
-  let angle = -fov_angle / 2;
+  let angle = -(numOfGeodesicLines - 1)/2 * delta_fov_angle;
+  //let angle = -fov_angle / 2;
   for (let i = 0; i < numOfGeodesicLines; i++) {
     // Растягиваем пропорционально углу отставания от вектора взгляда (в касательной плоскости)
     let diff_vec = vec_e1.mul(view_norm * Math.tan(angle));
@@ -131,14 +149,14 @@ function calculateGeodesics(camera, surface) {
     let currentRayState = [u, v, tmp_vec_view_decomp[0], tmp_vec_view_decomp[1]];
 
     // Берем заранее выделенный плоский массив для этой линии
-    const positions = positionBuffers[i]; 
+    const positions = geodesicPositionBuffers[i]; 
 
-    // TODO: мб делать не число шагов, а длину?
+    // TODO: мб делать не число шагов, а длину/время t?
     for (let j = 0; j < geodesicPointsCount; j++) {
       currentRayState = calculations.rk4Step(currentRayState, 0.05, surface);
       let coords = surface.transform(currentRayState[0], currentRayState[1]);
 
-      // Записываем голые числа прямо в массив без создания THREE.Vector3!
+      // Записываем голые числа прямо в массив без создания THREE.Vector3
       let stride = j * 3;
       positions[stride]     = coords[0]; // X
       positions[stride + 1] = coords[1]; // Y
@@ -148,7 +166,6 @@ function calculateGeodesics(camera, surface) {
     }
 
     // Сообщаем Three.js, что данные в буфере изменились, и их надо отправить на GPU.
-    // Это работает в сотни раз быстрее, чем setFromPoints!
     lineGeometries[i].attributes.position.needsUpdate = true;
 
     angle += delta_fov_angle;
@@ -175,8 +192,8 @@ leftContainer.addEventListener('mousemove', (event) => {
   mouseX = event.clientX / (window.innerWidth / 2);
   mouseY = event.clientY / window.innerHeight;
 
-  camera.setCoords(mouseX, mouseY);
-  calculateGeodesics(camera, surface);
+  //camera.setCoords(mouseX, mouseY);
+  //calculateGeodesics(camera, surface);
 });
 
 // Пересчитываем размеры окон, если пользователь изменил размер браузера
@@ -202,6 +219,18 @@ window.addEventListener('keydown', (event) => {
       //moveRight();
       break;
 
+    case 'ArrowUp':
+      camera.moveForward();
+      calculateGeodesics(camera, surface);
+      //moveRight();
+      break;
+
+    case 'ArrowDown':
+      camera.moveBackward();
+      calculateGeodesics(camera, surface);
+      //moveRight();
+      break;
+
     default:
       // Игнорируем все остальные клавиши
       return;
@@ -211,6 +240,7 @@ window.addEventListener('keydown', (event) => {
   event.preventDefault();
 });
 
+calculateGeodesics(camera, surface); // начальный расчёт геодезических
 // --- 4. ЕДИНЫЙ ИГРОВОЙ ЦИКЛ (Отрисовка) ---
 function animate() {
   // Запрашиваем следующий кадр анимации (60 FPS)

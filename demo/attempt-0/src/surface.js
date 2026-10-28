@@ -233,3 +233,110 @@ export class Sphere extends Surface2D {
     }
 
 }
+
+
+// Плоскость
+export class Plane extends Surface2D {
+    X(u, v) {
+        return this.vectorize(u, v, (uVal, vVal) => uVal);
+    }
+
+    Y(u, v) {
+       return this.vectorize(u, v, (uVal, vVal) => vVal);
+    }
+
+    Z(u, v) {
+        return this.vectorize(u, v, (uVal, vVal) => 0);
+    }
+
+    // Частные производные по u
+    Xu(u, v) {
+        return this.vectorize(u, v, (uVal, vVal) => 1);
+    }
+
+    Yu(u, v) {
+        return this.vectorize(u, v, (uVal, vVal) => 0);
+    }
+
+    Zu(u, v) {
+        return this.vectorize(u, v, (uVal, vVal) => 0);
+    }
+
+    // Частные производные по v
+    Xv(u, v) {
+        return this.vectorize(u, v, (uVal, vVal) => 0);
+    }
+
+    Yv(u, v) {
+        return this.vectorize(u, v, (uVal, vVal) => 1);
+    }
+
+    Zv(u, v) {
+        return this.vectorize(u, v, (uVal, vVal) => 0);
+    }
+
+    // Вторые частные производные по u
+    Xuu(u, v) {
+        return this.vectorize(u, v, (uVal, vVal) => 0);
+    }
+
+    Yuu(u, v) {
+        return this.vectorize(u, v, (uVal, vVal) => 0);
+    }
+
+    Zuu(u, v) {
+        return this.vectorize(u, v, (uVal, vVal) => 0);
+    }
+
+    Xvu(u, v) {
+        return this.vectorize(u, v, (uVal, vVal) => 0);
+    }
+
+    Yvu(u, v) {
+        return this.vectorize(u, v, (uVal, vVal) => 0);
+    }
+
+    Zvu(u, v) {
+        return this.vectorize(u, v, (uVal, vVal) => 0);
+    }
+
+    // Вторые частные производные по v
+    Xuv(u, v) {
+        return this.vectorize(u, v, (uVal, vVal) => 0);
+    }
+
+    Yuv(u, v) {
+        return this.vectorize(u, v, (uVal, vVal) => 0);
+    }
+
+    Zuv(u, v) {
+        return this.vectorize(u, v, (uVal, vVal) => 0);
+    }
+
+    Xvv(u, v) {
+        return this.vectorize(u, v, (uVal, vVal) => 0);
+    }
+
+    Yvv(u, v) {
+        return this.vectorize(u, v, (uVal, vVal) => 0);
+    }
+
+    Zvv(u, v) {
+        return this.vectorize(u, v, (uVal, vVal) => 0);
+    }
+
+    // TODO: здесь мб тоже нужна векторизация?
+    G(u, v) {
+        return [
+            [1, 0],
+            [0, 1],
+        ];
+    }
+
+    G_inverse(u, v) {
+        return [
+            [1, 0],
+            [0, 1],
+        ];
+    }
+}
