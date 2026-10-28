@@ -1,7 +1,9 @@
 import { Vec } from './vector.js';
 import * as vectors from './vector.js';
 
-const dotProduct = (a, b) => a.reduce((sum, val, i) => sum + val * b[i], 0);
+class GammaMatrix {
+
+}
 
 // Базовый класс для поверхностей
 export class Surface2D {
@@ -26,10 +28,6 @@ export class Surface2D {
     transform(u, v) {
         return [this.X(u, v), this.Y(u, v), this.Z(u, v)];
     }
-
-    Xu(u, v) { return `Parent Xu`; }
-    Yu(u, v) { return `Parent Yu`; }
-    Zu(u, v) { return `Parent Zu`; }
 
     r_u(u, v) {
         return new Vec([this.Xu(u, v), this.Yu(u, v), this.Zu(u, v)]);
@@ -95,9 +93,9 @@ export class Surface2D {
             + g_inv[k][1] * vectors.dot(scnd_der_mtrx[i][j], r_v);
     }
 
-    // Символ кристоффеля (матрица 2x2x2, элемент - ijk)
+    // Символы кристоффеля (матрица 2x2x2, элемент - ijk)
     // TODO: Возможно, имеет смысл возвращать [k][i][j], но это потом
-    Christoffel_Symbols(u, v) {
+    Christoffel_Symbols_Old(u, v) {
         const g_inv = this.G_inverse(u, v);
         const scnd = this.second_derivative_matrix(u, v);
         const r_u = this.r_u(u, v);
@@ -123,96 +121,136 @@ export class Surface2D {
         return res;
     }
 
+    // Символы кристоффеля, оптимизированная версия
+    Christoffel_Symbols(u, v) {
+        const g_inv = this.G_inverse(u, v);
+
+        let x_u = this.Xu(u, v), y_u = this.Yu(u, v), z_u = this.Zu(u, v);
+        let x_v = this.Xv(u, v), y_v = this.Yv(u, v), z_v = this.Zv(u, v);
+        let x_uu = this.Xuu(u, v);
+        let x_uv = this.Xuv(u, v);
+        let x_vu = this.Xvu(u, v);
+        let x_vv = this.Xvv(u, v);
+        let y_uu = this.Yuu(u, v);
+        let y_uv = this.Yuv(u, v);
+        let y_vu = this.Yvu(u, v);
+        let y_vv = this.Yvv(u, v);
+        let z_uu = this.Zuu(u, v);
+        let z_uv = this.Zuv(u, v);
+        let z_vu = this.Zvu(u, v);
+        let z_vv = this.Zvv(u, v);
+
+        let u00 = x_uu * x_u + y_uu * y_u + z_uu * z_u;
+        let v00 = x_uu * x_v + y_uu * y_v + z_uu * z_v;
+        let u01 = x_uv * x_u + y_uv * y_u + z_uv * z_u;
+        let v01 = x_uv * x_v + y_uv * y_v + z_uv * z_v;
+        let u10 = x_vu * x_u + y_vu * y_u + z_vu * z_u;
+        let v10 = x_vu * x_v + y_vu * y_v + z_vu * z_v;
+        let u11 = x_vv * x_u + y_vv * y_u + z_vv * z_u;
+        let v11 = x_vv * x_v + y_vv * y_v + z_vv * z_v;
+
+        return [
+            [
+                [g_inv[0][0] * u00 + g_inv[0][1] * v00, g_inv[1][0] * u00 + g_inv[1][1] * v00],
+                [g_inv[0][0] * u01 + g_inv[0][1] * v01, g_inv[1][0] * u01 + g_inv[1][1] * v01],
+            ],
+            [
+                [g_inv[0][0] * u10 + g_inv[0][1] * v10, g_inv[1][0] * u10 + g_inv[1][1] * v10],
+                [g_inv[0][0] * u11 + g_inv[0][1] * v11, g_inv[1][0] * u11 + g_inv[1][1] * v11],
+            ],
+        ];
+    }
+
 }
 
 // Класс Сферы, наследующий Surface2D
 export class Sphere extends Surface2D {
     X(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => Math.cos(uVal) * Math.sin(vVal));
+        return Math.cos(u) * Math.sin(v);
     }
 
     Y(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => Math.sin(uVal) * Math.sin(vVal));
+        return Math.sin(u) * Math.sin(v)
     }
 
     Z(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => Math.cos(vVal));
+        return Math.cos(v)
     }
 
     // Частные производные по u
     Xu(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => -Math.sin(uVal) * Math.sin(vVal));
+        return -Math.sin(u) * Math.sin(v)
     }
 
     Yu(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => Math.cos(uVal) * Math.sin(vVal));
+        return Math.cos(u) * Math.sin(v)
     }
 
     Zu(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => 0);
+        return 0
     }
 
     // Частные производные по v
     Xv(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => Math.cos(uVal) * Math.cos(vVal));
+        return Math.cos(u) * Math.cos(v)
     }
 
     Yv(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => Math.sin(uVal) * Math.cos(vVal));
+        return Math.sin(u) * Math.cos(v)
     }
 
     Zv(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => -Math.sin(vVal));
+        return -Math.sin(v)
     }
 
     // Вторые частные производные по u
     Xuu(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => -Math.cos(uVal) * Math.sin(vVal));
+        return -Math.cos(u) * Math.sin(v)
     }
 
     Yuu(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => -Math.sin(uVal) * Math.sin(vVal));
+        return -Math.sin(u) * Math.sin(v)
     }
 
     Zuu(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => 0);
+        return 0
     }
 
     Xvu(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => -Math.sin(uVal) * Math.cos(vVal));
+        return -Math.sin(u) * Math.cos(v)
     }
 
     Yvu(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => Math.cos(uVal) * Math.cos(vVal));
+        return  Math.cos(u) * Math.cos(v)
     }
 
     Zvu(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => 0);
+        return 0
     }
 
     // Вторые частные производные по v
     Xuv(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => -Math.sin(uVal) * Math.cos(vVal));
+        return -Math.sin(u) * Math.cos(v);
     }
 
     Yuv(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => Math.cos(uVal) * Math.cos(vVal));
+        return  Math.cos(u) * Math.cos(v);
     }
 
     Zuv(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => 0);
+        return 0;
     }
 
     Xvv(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => -Math.cos(uVal) * Math.sin(vVal));
+        return -Math.cos(u) * Math.sin(v);
     }
 
     Yvv(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => -Math.sin(uVal) * Math.sin(vVal));
+        return -Math.sin(u) * Math.sin(v);
     }
 
     Zvv(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => -Math.cos(vVal));
+        return -Math.cos(v);
     }
 
     // TODO: здесь мб тоже нужна векторизация?
@@ -237,91 +275,91 @@ export class Sphere extends Surface2D {
 // Плоскость
 export class Plane extends Surface2D {
     X(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => uVal);
+        return u;
     }
 
     Y(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => vVal);
+        return v;
     }
 
     Z(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => 0);
+        return  0;
     }
 
     // Частные производные по u
     Xu(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => 1);
+        return  1;
     }
 
     Yu(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => 0);
+        return 0;
     }
 
     Zu(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => 0);
+        return  0;
     }
 
     // Частные производные по v
     Xv(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => 0);
+        return 0;
     }
 
     Yv(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => 1);
+        return 1;
     }
 
     Zv(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => 0);
+        return 0;
     }
 
     // Вторые частные производные по u
     Xuu(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => 0);
+        return 0;
     }
 
     Yuu(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => 0);
+        return 0;
     }
 
     Zuu(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => 0);
+        return 0;
     }
 
     Xvu(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => 0);
+        return 0;
     }
 
     Yvu(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => 0);
+        return 0;
     }
 
     Zvu(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => 0);
+        return 0;
     }
 
     // Вторые частные производные по v
     Xuv(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => 0);
+        return 0;
     }
 
     Yuv(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => 0);
+        return  0;
     }
 
     Zuv(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => 0);
+        return 0;
     }
 
     Xvv(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => 0);
+        return  0;
     }
 
     Yvv(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => 0);
+        return 0;
     }
 
     Zvv(u, v) {
-        return this.vectorize(u, v, (uVal, vVal) => 0);
+        return  0;
     }
 
     G(u, v) {

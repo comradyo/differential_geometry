@@ -58,9 +58,9 @@ export class Vec {
     }
 }
 
-// Скалярное произведение
-export function dot(vec_a, vec_b) {
-    return vec_a.data.reduce((sum, val, i) => sum + val * vec_b.data[i], 0);
+// Скалярное произведение (закостылил для 3д векторов)
+export function dot(a, b) {
+    return a.data[0] * b.data[0] + a.data[1] * b.data[1] + a.data[2] * b.data[2]
 }
 
 // Векторная проекция вектора vec_arg на вектор vec_to

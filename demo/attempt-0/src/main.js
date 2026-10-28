@@ -319,8 +319,8 @@ function animate() {
   // Очищаем холст
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  //renderSurface(canvas.width, canvas.height);
-  renderSurface(canvas.width, 10);
+  renderSurface(canvas.width, canvas.height);
+  //renderSurface(canvas.width, 100);
   //renderSurfaceOptimized(canvas.width, canvas.height);
 
   // Выводим вычисленные пиксели на холст
