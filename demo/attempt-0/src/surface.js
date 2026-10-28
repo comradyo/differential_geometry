@@ -1,4 +1,4 @@
-import {Vec} from './vector.js'; 
+import { Vec } from './vector.js';
 import * as vectors from './vector.js';
 
 const dotProduct = (a, b) => a.reduce((sum, val, i) => sum + val * b[i], 0);
@@ -83,8 +83,8 @@ export class Surface2D {
     // Матрица частных производных по i и j векторам
     second_derivative_matrix(u, v) {
         return [
-                [this.r_uu(u, v), this.r_uv(u, v)],
-                [this.r_vu(u, v), this.r_vv(u, v)],
+            [this.r_uu(u, v), this.r_uv(u, v)],
+            [this.r_vu(u, v), this.r_vv(u, v)],
         ];
     }
 
@@ -98,25 +98,24 @@ export class Surface2D {
     // Символ кристоффеля (матрица 2x2x2, элемент - ijk)
     // TODO: Возможно, имеет смысл возвращать [k][i][j], но это потом
     Christoffel_Symbols(u, v) {
-        // TODO: как-то оптимизировать расчёты,
-        let g_inv = this.G_inverse(u, v);
-        let scnd_der_mtrx = this.second_derivative_matrix(u, v);
-        let r_u = this.r_u(u, v);
-        let r_v = this.r_v(u, v);
+        const g_inv = this.G_inverse(u, v);
+        const scnd = this.second_derivative_matrix(u, v);
+        const r_u = this.r_u(u, v);
+        const r_v = this.r_v(u, v);
 
-        // Создание массива 2 x 2 x 2
         const res = Array.from({ length: 2 }, () =>
-            Array.from({ length: 2 }, () =>
-                Array.from({ length: 2 }, () => 0)
-            )
+            Array.from({ length: 2 }, () => [0, 0])
         );
 
         for (let i = 0; i < 2; i++) {
             for (let j = 0; j < 2; j++) {
+                const a = vectors.dot(scnd[i][j], r_u);
+                const b = vectors.dot(scnd[i][j], r_v);
+
                 for (let k = 0; k < 2; k++) {
-                    res[i][j][k] = this.christoffel_symbol(
-                        i, j, k, g_inv, scnd_der_mtrx, r_u, r_v
-                    )
+                    res[i][j][k] =
+                        g_inv[k][0] * a +
+                        g_inv[k][1] * b;
                 }
             }
         }
@@ -242,7 +241,7 @@ export class Plane extends Surface2D {
     }
 
     Y(u, v) {
-       return this.vectorize(u, v, (uVal, vVal) => vVal);
+        return this.vectorize(u, v, (uVal, vVal) => vVal);
     }
 
     Z(u, v) {
@@ -325,7 +324,6 @@ export class Plane extends Surface2D {
         return this.vectorize(u, v, (uVal, vVal) => 0);
     }
 
-    // TODO: здесь мб тоже нужна векторизация?
     G(u, v) {
         return [
             [1, 0],

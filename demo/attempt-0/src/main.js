@@ -18,6 +18,7 @@ const numOfGeodesicLines = 9;
 let delta_fov_angle = fov_angle / numOfGeodesicLines;
 
 const surface = new surfaces.Sphere();
+//const surface = new surfaces.Plane();
 const camera = new cameras.Camera(fov_angle, surface);
 camera.setCoords(0, 0.1);
 
@@ -76,19 +77,19 @@ scene.add(arrow_r_v);
 const arrow_e1 = new Arrow([0, 0, 0], [0, 0, 1], "red", 0.05, 0.05);
 const arrow_e2 = new Arrow([0, 0, 0], [0, 0, 1], "blue", 0.05, 0.05);
 arrow_e1.line.material = new THREE.LineDashedMaterial({
-    color: "red",
-    dashSize: 0.1,  // Длина самого штриха
-    gapSize: 0.1,   // Длина пропуска между штрихами
-    scale: 1        // Масштаб пунктира
+  color: "red",
+  dashSize: 0.1,  // Длина самого штриха
+  gapSize: 0.1,   // Длина пропуска между штрихами
+  scale: 1        // Масштаб пунктира
 });
-arrow_e1.line.computeLineDistances(); 
+arrow_e1.line.computeLineDistances();
 arrow_e2.line.material = new THREE.LineDashedMaterial({
-    color: "blue",
-    dashSize: 0.1,  // Длина самого штриха
-    gapSize: 0.1,   // Длина пропуска между штрихами
-    scale: 1        // Масштаб пунктира
+  color: "blue",
+  dashSize: 0.1,  // Длина самого штриха
+  gapSize: 0.1,   // Длина пропуска между штрихами
+  scale: 1        // Масштаб пунктира
 });
-arrow_e2.line.computeLineDistances(); 
+arrow_e2.line.computeLineDistances();
 scene.add(arrow_e1);
 scene.add(arrow_e2);
 
@@ -138,7 +139,7 @@ function calculateGeodesics(camera, surface) {
   let v = camera.v;
   let view_norm = vec_view.norm();
 
-  let angle = -(numOfGeodesicLines - 1)/2 * delta_fov_angle;
+  let angle = -(numOfGeodesicLines - 1) / 2 * delta_fov_angle;
   //let angle = -fov_angle / 2;
   for (let i = 0; i < numOfGeodesicLines; i++) {
     // Растягиваем пропорционально углу отставания от вектора взгляда (в касательной плоскости)
@@ -149,16 +150,16 @@ function calculateGeodesics(camera, surface) {
     let currentRayState = [u, v, tmp_vec_view_decomp[0], tmp_vec_view_decomp[1]];
 
     // Берем заранее выделенный плоский массив для этой линии
-    const positions = geodesicPositionBuffers[i]; 
+    const positions = geodesicPositionBuffers[i];
 
     // TODO: мб делать не число шагов, а длину/время t?
     for (let j = 0; j < geodesicPointsCount; j++) {
-      currentRayState = calculations.rk4Step(currentRayState, 0.05, surface);
+      calculations.rk4StepInPlace(currentRayState, 0.05, surface);
       let coords = surface.transform(currentRayState[0], currentRayState[1]);
 
       // Записываем голые числа прямо в массив без создания THREE.Vector3
       let stride = j * 3;
-      positions[stride]     = coords[0]; // X
+      positions[stride] = coords[0]; // X
       positions[stride + 1] = coords[1]; // Y
       positions[stride + 2] = coords[2]; // Z
 
@@ -173,15 +174,65 @@ function calculateGeodesics(camera, surface) {
 
 }
 
+const dT = 0.01;
+
+function renderSurface(w, h) {
+  let angle = -(canvas.width - 1) / 2 * dAngle;
+  let vec_view = camera.e2;
+  let vec_e1 = camera.e1;
+  let vec_ru = camera.r_u;
+  let vec_rv = camera.r_v;
+  let u = camera.u;
+  let v = camera.v;
+  let view_norm = vec_view.norm();
+
+  let diff_vec = vec_e1.mul(view_norm * Math.tan(angle));
+  let tmp_vec_view = vec_view.add(diff_vec);
+  let tmp_vec_view_decomp = vectors.decomposition(tmp_vec_view, vec_ru, vec_rv);
+  let currentRayState = [u, v, tmp_vec_view_decomp[0], tmp_vec_view_decomp[1]];
+  let i = 0;
+  let x = 0;
+  let y = 0;
+
+  for (x = 0; x < w; x++) {
+    // Растягиваем пропорционально углу отставания от вектора взгляда (в касательной плоскости)
+    diff_vec = vec_e1.mul(view_norm * Math.tan(angle));
+    tmp_vec_view = vec_view.add(diff_vec);
+
+    tmp_vec_view_decomp = vectors.decomposition(tmp_vec_view, vec_ru, vec_rv);
+    currentRayState = [u, v, tmp_vec_view_decomp[0], tmp_vec_view_decomp[1]];
+
+    for (y = 0; y < h; y++) {
+      calculations.rk4StepInPlace(currentRayState, dT, surface);
+
+      // Индекс первого цветового канала пикселя
+      i = (y * w + x) * 4;
+
+      image.data[i] = x * 255 / w + camera.pos[0] * 100; // красный
+      image.data[i + 1] = 200 * currentRayState[0]; // зелёный
+      image.data[i + 2] = 150 * currentRayState[1];         // синий
+      image.data[i + 3] = 255;         // прозрачность
+      // Тут же можно проверять пересечение луча со стенами/объектами
+    }
+
+    angle += delta_fov_angle;
+  }
+}
+
 // --- 2. НАСТРОЙКА ПРАВОГО ОКНА (2D Canvas) ---
 /** @type {HTMLCanvasElement} */
 const canvas = document.getElementById('raycastCanvas');
 const ctx = canvas.getContext('2d');
+// Создаём пустое изображение
+let image = ctx.createImageData(canvas.width, canvas.height);
 
+let dAngle = fov_angle / canvas.width;
 // Подгоняем размер 2D-холста под размер его окна
 function resizeCanvas() {
   canvas.width = window.innerWidth / 2;
   canvas.height = window.innerHeight;
+  image = ctx.createImageData(canvas.width, canvas.height);
+  dAngle = fov_angle / canvas.width;
 }
 resizeCanvas();
 
@@ -253,14 +304,12 @@ function animate() {
   // --- Обновляем левое окно (Three.js) ---
   renderer.render(scene, threeCamera);
 
-  arrow_r_u.quiver(camera.coords, camera.r_u);
-  arrow_r_v.quiver(camera.coords, camera.r_v);
-  arrow_e1.quiver(camera.coords, camera.e1);
-  arrow_e2.quiver(camera.coords, camera.e2);
+  arrow_r_u.quiver(camera.pos, camera.r_u);
+  arrow_r_v.quiver(camera.pos, camera.r_v);
+  arrow_e1.quiver(camera.pos, camera.e1);
+  arrow_e2.quiver(camera.pos, camera.e2);
   // Свдигание камеры
-  playerMesh.position.set(camera.coords[0], camera.coords[1], camera.coords[2]);
-
-  // Отрисовка геодезической
+  playerMesh.position.set(camera.pos[0], camera.pos[1], camera.pos[2]);
 
   /////////////////////////////
   /////////////////////////////
@@ -270,6 +319,14 @@ function animate() {
   // Очищаем холст
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+  //renderSurface(canvas.width, canvas.height);
+  renderSurface(canvas.width, 10);
+  //renderSurfaceOptimized(canvas.width, canvas.height);
+
+  // Выводим вычисленные пиксели на холст
+  ctx.putImageData(image, 0, 0);
+
+  /*
   // Переводим нормализованные координаты мыши в пиксели правого холста
   let dotX = mouseX * canvas.width;
   let dotY = mouseY * canvas.height;
@@ -282,8 +339,7 @@ function animate() {
   // Заливаем холст получившимся градиентом
   ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
   ctx.fillRect(dotX, dotY, 50, 50);
-
-  //print(surface.X(mouseX, mouseY));
+*/
 }
 
 // Запускаем наш цикл

@@ -14,7 +14,7 @@ export class Camera {
         this.surface = surface;
         this.u = 0;
         this.v = 0;
-        this.coords = surface.transform(this.u, this.v);
+        this.pos = surface.transform(this.u, this.v);
         this.angle = 0; // Угол относительно rv
         // Канонический базис в точке
         this.r_u = surface.r_u(this.u, this.v);
@@ -31,7 +31,7 @@ export class Camera {
     }
 
     updateBasis() {
-        this.coords = this.surface.transform(this.u, this.v);
+        this.pos = this.surface.transform(this.u, this.v);
         // Канонический базис в точке
         this.r_u = this.surface.r_u(this.u, this.v);
         this.r_v = this.surface.r_v(this.u, this.v);
@@ -85,7 +85,7 @@ export class Camera {
         // TODO: нужен ли здесь цикл? Или просто один раз смещаемся?
         // Наверное, в игре нужен будет цикл - для инертности бега
         for (let t = 0; t < maxTime; t += dTime) {
-            rayState = calculations.rk4Step(rayState, dTime, this.surface);
+            calculations.rk4StepInPlace(rayState, dTime, this.surface);
         }
 
         this.u = rayState[0];
@@ -107,7 +107,7 @@ export class Camera {
         let rayState = [this.u, this.v, vec_view_decomp[0], vec_view_decomp[1]];
 
         for (let t = 0; t < maxTime; t += dTime) {
-            rayState = calculations.rk4Step(rayState, dTime, this.surface);
+            calculations.rk4StepInPlace(rayState, dTime, this.surface);
         }
 
         this.u = rayState[0];
