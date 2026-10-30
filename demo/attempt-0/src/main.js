@@ -5,6 +5,7 @@ import { Vec, Arrow } from './vector.js';
 import * as vectors from './vector.js';
 import * as calculations from './calculations.js'
 import * as cameras from './camera.js'
+import * as texture_loader from './texture.js'
 
 // --- ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ДЛЯ СВЯЗИ ОКОН ---
 let mouseX = 0;
@@ -17,8 +18,8 @@ let fov_angle = Math.PI * fov_angle_degrees / 180.0;
 const numOfGeodesicLines = 9;
 let delta_fov_angle = fov_angle / numOfGeodesicLines;
 
-const surface = new surfaces.Sphere();
-//const surface = new surfaces.Plane();
+//const surface = new surfaces.Sphere();
+const surface = new surfaces.Plane(10, 10);
 const camera = new cameras.Camera(fov_angle, surface);
 camera.setCoords(0, 0.1);
 
@@ -43,23 +44,24 @@ const controls = new OrbitControls(threeCamera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 
+const surfaceTextureURL = 'src/earth.jpg';
+texture_loader.loadTextureToCPU(surfaceTextureURL);
+
 // 1. Создаем каркас сферы (радиус, сегменты по u, сегменты по v)
 const sphereGeometry = new THREE.SphereGeometry(1, 64, 64);
 sphereGeometry.rotateX(Math.PI / 2); // Нужно для того, чтобы полюса были на оси z.
-
+sphereGeometry.rotateZ(Math.PI); // Образ нулевого столбца текстуры будет лежать в плоскости xOz
 // 2. Создаем материал
-// Вариант А: Обычная сетка (как plot_wireframe)
-// const wireMaterial = new THREE.MeshBasicMaterial({ color: 0x4444ff, wireframe: true });
-// Вариант Б: Сплошная поверхность с текстурой (как plot_surface)
-// TODO: почему-то в 3д Ox расположена справа, Oy - слева, Oz - смотрит на камеру.
-// При этом, полюса накладывается на ось Z. А, ну в движках часто z - это глубина, но тут нужно будет поправить. 
 const textureLoader = new THREE.TextureLoader();
-const earthTexture = textureLoader.load('src/earth.jpg'); // пример текстуры из доков Three.js
+const earthTexture = textureLoader.load(surfaceTextureURL); // пример текстуры из доков Three.js
 const surfaceMaterial = new THREE.MeshBasicMaterial({ map: earthTexture });
-
 // 3. Объединяем геометрию и материал в один объект и добавляем на сцену
 const sphereMesh = new THREE.Mesh(sphereGeometry, surfaceMaterial);
 scene.add(sphereMesh);
+
+const planeGeometry = new THREE.PlaneGeometry(10, 10);
+const planeMesh = new THREE.Mesh(planeGeometry, surfaceMaterial);
+scene.add(planeMesh);
 
 // Камера на поверхности
 const playerGeometry = new THREE.SphereGeometry(0.03, 16, 16);
@@ -176,7 +178,8 @@ function calculateGeodesics(camera, surface) {
 
 const dT = 0.01;
 
-function renderSurface(w, h) {
+// Рендеринг вида из камеры
+function renderCameraView(w, h) {
   let angle = -(canvas.width - 1) / 2 * dAngle;
   let vec_view = camera.e2;
   let vec_e1 = camera.e1;
@@ -206,16 +209,46 @@ function renderSurface(w, h) {
       calculations.rk4StepInPlace(currentRayState, dT, surface);
 
       // Индекс первого цветового канала пикселя
-      i = (y * w + x) * 4;
+      // TODO: методом подбора нашел, что нужно делать разницу с шириной, но нужно подумать, почему
+      i = ((canvas.height - y) * w + (canvas.width - x)) * 4;
 
-      image.data[i] = x * 255 / w + camera.pos[0] * 100; // красный
-      image.data[i + 1] = 200 * currentRayState[0]; // зелёный
-      image.data[i + 2] = 150 * currentRayState[1];         // синий
-      image.data[i + 3] = 255;         // прозрачность
-      // Тут же можно проверять пересечение луча со стенами/объектами
+      let normalizeCoordinates = surface.normalizeCoordinates(currentRayState[0], currentRayState[1]);
+      let color = texture_loader.getPixelColor(normalizeCoordinates.uNorm, normalizeCoordinates.vNorm);
+
+      image.data[i] = color.r;
+      image.data[i + 1] = color.g;
+      image.data[i + 2] = color.b;
+      image.data[i + 3] = 255; // прозрачность
+
+      // TODO: проверять пересечение луча со стенами/объектами
     }
 
-    angle += delta_fov_angle;
+    angle += dAngle;
+  }
+}
+
+// Рендеринг вида из камеры
+// DEBUG
+function renderSurfaceTexture(w, h) {
+  let u = 0;
+  let v = 0;
+  for (let x = 0; x < w; x++) {
+    v = 0;
+    for (let y = 0; y < h; y++) {
+      // Индекс первого цветового канала пикселя
+      let i = (y * w + x) * 4;
+
+      let normalizeCoordinates = surface.normalizeCoordinates(u, v);
+      let color = texture_loader.getPixelColor(normalizeCoordinates.uNorm, normalizeCoordinates.vNorm);
+
+      image.data[i] = color.r;
+      image.data[i + 1] = color.g;
+      image.data[i + 2] = color.b;
+      image.data[i + 3] = 255; // прозрачность
+
+      v += Math.PI / h;
+    }
+    u += 2 * Math.PI / w;
   }
 }
 
@@ -319,28 +352,29 @@ function animate() {
   // Очищаем холст
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  renderSurface(canvas.width, canvas.height);
-  //renderSurface(canvas.width, 100);
-  //renderSurfaceOptimized(canvas.width, canvas.height);
+  renderCameraView(canvas.width, canvas.height);
+  //renderCameraView(canvas.width, 100);
 
-  // Выводим вычисленные пиксели на холст
+  // TODO: выводить текстуру, чтобы было видно, где находимся в плоскости (u, v)
+  //renderSurfaceTexture(canvas.width, canvas.height);
+
+  // Вывод вида из камеры
   ctx.putImageData(image, 0, 0);
-
-  /*
-  // Переводим нормализованные координаты мыши в пиксели правого холста
-  let dotX = mouseX * canvas.width;
-  let dotY = mouseY * canvas.height;
-
-  // Цвет динамически меняется от движения
-  let r = Math.floor(mouseX * 255);
-  let g = Math.floor(mouseY * 255);
-  let b = 150;
-
-  // Заливаем холст получившимся градиентом
-  ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-  ctx.fillRect(dotX, dotY, 50, 50);
-*/
 }
 
 // Запускаем наш цикл
 animate();
+
+/*
+  ctx.beginPath();
+  let normal = surface.normalizeCoordinates(camera.u, camera.v);
+  let x = Math.floor(normal.uNorm * canvas.width);
+  let y = Math.floor(normal.vNorm * canvas.height);
+  //let pixelCoords = texture_loader.getPixelCoordinates(normal.uNorm, normal.vNorm);
+  //console.log(pixelCoords);
+
+  ctx.arc(x, y, 50, 0, 2 * Math.PI); // Center at (100,100), radius 50
+  ctx.fillStyle = '#3498db';              // Blue fill
+  ctx.fill();                            // Draw the solid circle
+
+*/

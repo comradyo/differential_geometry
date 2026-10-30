@@ -7,6 +7,10 @@ class GammaMatrix {
 
 // Базовый класс для поверхностей
 export class Surface2D {
+    normalizeCoordinates(u, v) {
+        return u, v
+    }
+
     // Вспомогательный метод для эмуляции векторизации NumPy
     // Принимает переменные и функцию-формулу, которую нужно применить
     vectorize(u, v, formula) {
@@ -165,6 +169,16 @@ export class Surface2D {
 
 // Класс Сферы, наследующий Surface2D
 export class Sphere extends Surface2D {
+    normalizeCoordinates(u, v) {
+        let uNorm = (u % (2 * Math.PI)) / (2 * Math.PI);
+        if (uNorm < 0) uNorm += 1;
+
+        let vNorm = (v % Math.PI) / Math.PI;
+        if (vNorm < 0) vNorm += 1;
+
+        return { uNorm, vNorm }
+    }
+
     X(u, v) {
         return Math.cos(u) * Math.sin(v);
     }
@@ -221,7 +235,7 @@ export class Sphere extends Surface2D {
     }
 
     Yvu(u, v) {
-        return  Math.cos(u) * Math.cos(v)
+        return Math.cos(u) * Math.cos(v)
     }
 
     Zvu(u, v) {
@@ -234,7 +248,7 @@ export class Sphere extends Surface2D {
     }
 
     Yuv(u, v) {
-        return  Math.cos(u) * Math.cos(v);
+        return Math.cos(u) * Math.cos(v);
     }
 
     Zuv(u, v) {
@@ -274,6 +288,22 @@ export class Sphere extends Surface2D {
 
 // Плоскость
 export class Plane extends Surface2D {
+    constructor(length, width) {
+        super();
+        this.length = length;
+        this.width = width;
+    }
+
+    normalizeCoordinates(u, v) {
+        let uNorm = (u % this.length) / this.length;
+        if (uNorm < 0) uNorm += 1;
+
+        let vNorm = (v % this.width) / this.width;
+        if (vNorm < 0) vNorm += 1;
+
+        return { uNorm, vNorm };
+    }
+
     X(u, v) {
         return u;
     }
@@ -283,12 +313,12 @@ export class Plane extends Surface2D {
     }
 
     Z(u, v) {
-        return  0;
+        return 0;
     }
 
     // Частные производные по u
     Xu(u, v) {
-        return  1;
+        return 1;
     }
 
     Yu(u, v) {
@@ -296,7 +326,7 @@ export class Plane extends Surface2D {
     }
 
     Zu(u, v) {
-        return  0;
+        return 0;
     }
 
     // Частные производные по v
@@ -343,7 +373,7 @@ export class Plane extends Surface2D {
     }
 
     Yuv(u, v) {
-        return  0;
+        return 0;
     }
 
     Zuv(u, v) {
@@ -351,7 +381,7 @@ export class Plane extends Surface2D {
     }
 
     Xvv(u, v) {
-        return  0;
+        return 0;
     }
 
     Yvv(u, v) {
@@ -359,7 +389,7 @@ export class Plane extends Surface2D {
     }
 
     Zvv(u, v) {
-        return  0;
+        return 0;
     }
 
     G(u, v) {

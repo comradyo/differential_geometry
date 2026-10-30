@@ -27,7 +27,6 @@ export class Camera {
         // Направление взгляда совпадает с вектором e2
         this.e1 = this.ru_norm.mul(+Math.cos(this.angle)).add(this.rv_norm.mul(+Math.sin(this.angle)));
         this.e2 = this.ru_norm.mul(-Math.sin(this.angle)).add(this.rv_norm.mul(+Math.cos(this.angle)));
-
     }
 
     updateBasis() {

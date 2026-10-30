@@ -49,7 +49,7 @@ export class Vec {
     }
 
     toArray() {
-        return Array.from(this.data); 
+        return Array.from(this.data);
     }
 
     // Удобный вывод в консоль
@@ -60,7 +60,7 @@ export class Vec {
 
 // Скалярное произведение (закостылил для 3д векторов)
 export function dot(a, b) {
-    return a.data[0] * b.data[0] + a.data[1] * b.data[1] + a.data[2] * b.data[2]
+    return a.data[0] * b.data[0] + a.data[1] * b.data[1] + a.data[2] * b.data[2];
 }
 
 // Векторная проекция вектора vec_arg на вектор vec_to
