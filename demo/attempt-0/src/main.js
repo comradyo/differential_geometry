@@ -7,19 +7,19 @@ import * as calculations from './calculations.js'
 import * as cameras from './camera.js'
 import * as texture_loader from './texture.js'
 
-// --- ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ДЛЯ СВЯЗИ ОКОН ---
-let mouseX = 0;
-let mouseY = 0;
+let dT = 0.01;
+const ddT = 0.001;
+const dAngleWidening = Math.PI / 100; // Для расширения/сужения угла обзора
 
 // Угол обзора камеры на поверхности
 let fov_angle_degrees = 60.0;
 let fov_angle = Math.PI * fov_angle_degrees / 180.0;
 // Число геодезических, которые будут отрисовываны на 3D изображении
 const numOfGeodesicLines = 9;
-let delta_fov_angle = fov_angle / numOfGeodesicLines;
+let deltaFovAngleGeodesics = fov_angle / numOfGeodesicLines;
 
-//const surface = new surfaces.Sphere();
-const surface = new surfaces.Plane(10, 10);
+const surface = new surfaces.Sphere();
+//const surface = new surfaces.Plane(10, 10);
 const camera = new cameras.Camera(fov_angle, surface);
 camera.setCoords(0, 0.1);
 
@@ -57,11 +57,12 @@ const earthTexture = textureLoader.load(surfaceTextureURL); // пример те
 const surfaceMaterial = new THREE.MeshBasicMaterial({ map: earthTexture });
 // 3. Объединяем геометрию и материал в один объект и добавляем на сцену
 const sphereMesh = new THREE.Mesh(sphereGeometry, surfaceMaterial);
-scene.add(sphereMesh);
 
 const planeGeometry = new THREE.PlaneGeometry(10, 10);
 const planeMesh = new THREE.Mesh(planeGeometry, surfaceMaterial);
-scene.add(planeMesh);
+
+scene.add(sphereMesh);
+//scene.add(planeMesh);
 
 // Камера на поверхности
 const playerGeometry = new THREE.SphereGeometry(0.03, 16, 16);
@@ -101,12 +102,10 @@ const arrow_Oz = new Arrow([0, 0, 0], [0, 0, 10], "blue", 0.05, 0.05);
 scene.add(arrow_Ox, arrow_Oy, arrow_Oz);
 ////////////////
 
-// Создаем геометрию линии из массива точек
-const lineGeometry = new THREE.BufferGeometry();
 // Создаем материал линии (толщина линии в WebGL на большинстве карт всегда 1 пиксель)
 // TODO: толщина линии, пунктир
 const lineMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
-
+// Создаем геометрию линии из массива точек
 const geodesicLines = new Array(numOfGeodesicLines);
 const lineGeometries = new Array(numOfGeodesicLines);
 for (let i = 0; i < numOfGeodesicLines; i++) {
@@ -132,7 +131,7 @@ for (let i = 0; i < numOfGeodesicLines; i++) {
 }
 
 // Функция для расчёта геодезических на поверхности
-function calculateGeodesics(camera, surface) {
+function calculateGeodesics() {
   let vec_view = camera.e2;
   let vec_e1 = camera.e1;
   let vec_ru = camera.r_u;
@@ -141,7 +140,7 @@ function calculateGeodesics(camera, surface) {
   let v = camera.v;
   let view_norm = vec_view.norm();
 
-  let angle = -(numOfGeodesicLines - 1) / 2 * delta_fov_angle;
+  let angle = -(numOfGeodesicLines - 1) / 2 * deltaFovAngleGeodesics;
   //let angle = -fov_angle / 2;
   for (let i = 0; i < numOfGeodesicLines; i++) {
     // Растягиваем пропорционально углу отставания от вектора взгляда (в касательной плоскости)
@@ -156,7 +155,7 @@ function calculateGeodesics(camera, surface) {
 
     // TODO: мб делать не число шагов, а длину/время t?
     for (let j = 0; j < geodesicPointsCount; j++) {
-      calculations.rk4StepInPlace(currentRayState, 0.05, surface);
+      calculations.rk4StepInPlace(currentRayState, dT, surface);
       let coords = surface.transform(currentRayState[0], currentRayState[1]);
 
       // Записываем голые числа прямо в массив без создания THREE.Vector3
@@ -171,14 +170,14 @@ function calculateGeodesics(camera, surface) {
     // Сообщаем Three.js, что данные в буфере изменились, и их надо отправить на GPU.
     lineGeometries[i].attributes.position.needsUpdate = true;
 
-    angle += delta_fov_angle;
+    angle += deltaFovAngleGeodesics;
   }
 
 }
 
-const dT = 0.01;
-
 // Рендеринг вида из камеры
+// Для плоскости рендериг некорректный - искажается перспектива, нужно понять, как корректно делать отрисовку.
+// Скорее всего, нужно пропорционально (либо обратно пропорционально) увеличивать длину dT, но пока не понял, как
 function renderCameraView(w, h) {
   let angle = -(canvas.width - 1) / 2 * dAngle;
   let vec_view = camera.e2;
@@ -206,11 +205,10 @@ function renderCameraView(w, h) {
     currentRayState = [u, v, tmp_vec_view_decomp[0], tmp_vec_view_decomp[1]];
 
     for (y = 0; y < h; y++) {
-      calculations.rk4StepInPlace(currentRayState, dT, surface);
+      calculations.rk4StepInPlace(currentRayState, dT, surface); // dT, кажется, нужно как-то пропорционально увеличивать с y
 
       // Индекс первого цветового канала пикселя
-      // TODO: методом подбора нашел, что нужно делать разницу с шириной, но нужно подумать, почему
-      i = ((canvas.height - y) * w + (canvas.width - x)) * 4;
+      i = ((canvas.height - y) * w + x) * 4;
 
       let normalizeCoordinates = surface.normalizeCoordinates(currentRayState[0], currentRayState[1]);
       let color = texture_loader.getPixelColor(normalizeCoordinates.uNorm, normalizeCoordinates.vNorm);
@@ -227,7 +225,6 @@ function renderCameraView(w, h) {
   }
 }
 
-// Рендеринг вида из камеры
 // DEBUG
 function renderSurfaceTexture(w, h) {
   let u = 0;
@@ -275,9 +272,6 @@ leftContainer.addEventListener('mousemove', (event) => {
   // Нормализуем координаты мыши от 0 до 1
   mouseX = event.clientX / (window.innerWidth / 2);
   mouseY = event.clientY / window.innerHeight;
-
-  //camera.setCoords(mouseX, mouseY);
-  //calculateGeodesics(camera, surface);
 });
 
 // Пересчитываем размеры окон, если пользователь изменил размер браузера
@@ -293,26 +287,50 @@ window.addEventListener('keydown', (event) => {
   switch (event.key) {
     case 'ArrowLeft':
       camera.turnLeft();
-      calculateGeodesics(camera, surface);
+      calculateGeodesics();
       //moveLeft();
       break;
 
     case 'ArrowRight':
       camera.turnRight();
-      calculateGeodesics(camera, surface);
+      calculateGeodesics();
       //moveRight();
       break;
 
     case 'ArrowUp':
       camera.moveForward();
-      calculateGeodesics(camera, surface);
+      calculateGeodesics();
       //moveRight();
       break;
 
     case 'ArrowDown':
       camera.moveBackward();
-      calculateGeodesics(camera, surface);
+      calculateGeodesics();
       //moveRight();
+      break;
+
+    case 'w':
+      dT += ddT;
+      calculateGeodesics();
+      break;
+
+    case 's':
+      dT -= ddT;
+      calculateGeodesics();
+      break;
+
+    case 'e':
+      fov_angle += dAngleWidening;
+      deltaFovAngleGeodesics = fov_angle / numOfGeodesicLines;
+      dAngle = fov_angle / canvas.width;
+      calculateGeodesics();
+      break;
+
+    case 'q':
+      fov_angle -= dAngleWidening;
+      deltaFovAngleGeodesics = fov_angle / numOfGeodesicLines;
+      dAngle = fov_angle / canvas.width;
+      calculateGeodesics();
       break;
 
     default:
@@ -324,7 +342,7 @@ window.addEventListener('keydown', (event) => {
   event.preventDefault();
 });
 
-calculateGeodesics(camera, surface); // начальный расчёт геодезических
+calculateGeodesics(); // начальный расчёт геодезических
 // --- 4. ЕДИНЫЙ ИГРОВОЙ ЦИКЛ (Отрисовка) ---
 function animate() {
   // Запрашиваем следующий кадр анимации (60 FPS)
@@ -341,7 +359,7 @@ function animate() {
   arrow_r_v.quiver(camera.pos, camera.r_v);
   arrow_e1.quiver(camera.pos, camera.e1);
   arrow_e2.quiver(camera.pos, camera.e2);
-  // Свдигание камеры
+  // Свдигание камеры на поверхности
   playerMesh.position.set(camera.pos[0], camera.pos[1], camera.pos[2]);
 
   /////////////////////////////
@@ -352,7 +370,8 @@ function animate() {
   // Очищаем холст
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  renderCameraView(canvas.width, canvas.height);
+  renderCameraView(canvas.width, canvas.height / 2);
+  //renderCameraView(canvas.width, canvas.height);
   //renderCameraView(canvas.width, 100);
 
   // TODO: выводить текстуру, чтобы было видно, где находимся в плоскости (u, v)
@@ -362,7 +381,7 @@ function animate() {
   ctx.putImageData(image, 0, 0);
 }
 
-// Запускаем наш цикл
+// Запуск цикла отрисовки
 animate();
 
 /*

@@ -55,14 +55,15 @@ import geometry.surfaces as surfaces
 
 
 
-u_min = 0
-u_max = 2 * np.pi
-v_min = 0
-v_max = np.pi
-num_of_u = 20
-num_of_v = 20
-t_span_max = np.pi
-surface = surfaces.Sphere(u_min, u_max, num_of_u, v_min, v_max, num_of_v)
+#u_min = 0
+#u_max = 2 * np.pi
+#v_min = 0
+#v_max = np.pi
+#num_of_u = 20
+#num_of_v = 20
+#t_max = 2*np.pi
+#t_max_default = np.pi
+#surface = surfaces.Sphere(u_min, u_max, num_of_u, v_min, v_max, num_of_v)
 
 #u_min = -5
 #u_max = 5
@@ -70,17 +71,19 @@ surface = surfaces.Sphere(u_min, u_max, num_of_u, v_min, v_max, num_of_v)
 #v_max = 5
 #num_of_u = 40
 #num_of_v = 40
-#t_span_max = 50
+#t_max = 50
+#t_max_default = 10
 #surface = surfaces.SurfaceWithCollinearVectors(u_min, u_max, num_of_u, v_min, v_max, num_of_v)
 
-#u_min = -5
-#u_max = 5
-#v_min = -5
-#v_max = 5
-#num_of_u = 40
-#num_of_v = 40
-#t_span_max = 10
-#surface = surfaces.Plane(u_min, u_max, num_of_u, v_min, v_max, num_of_v)
+u_min = -5
+u_max = 5
+v_min = -5
+v_max = 5
+num_of_u = 40
+num_of_v = 40
+t_max = 50
+t_max_default = 10
+surface = surfaces.Plane(u_min, u_max, num_of_u, v_min, v_max, num_of_v)
 
 U, V, X, Y, Z, Xu, Yu, Zu, Xv, Yv, Zv = surface.get_data_to_draw()
 
@@ -97,9 +100,12 @@ ax_v = fig.add_axes([0.25, 0.13, 0.5, 0.03])
 slider_u = Slider(ax=ax_u, label="Координата u", valmin=u_min, valmax=u_max, valinit=1)
 slider_v = Slider(ax=ax_v, label="Координата v", valmin=v_min, valmax=v_max, valinit=1)
 
-# Слайдеры для вектора a*ru(u_0) + b*rv(b_0)
-ax_alpha = fig.add_axes([0.25, 0.04, 0.5, 0.03])
+# Угол поворота вектора взгляда
+ax_alpha = fig.add_axes([0.25, 0.16, 0.5, 0.03])
 slider_alpha  = Slider(ax=ax_alpha , label="Угол альфа", valmin=0, valmax=2 * np.pi, valinit=0)
+# Время движения луча
+ax_t_max = fig.add_axes([0.25, 0.19, 0.5, 0.03])
+slider_t_max  = Slider(ax=ax_t_max , label="Время движения луча", valmin=0, valmax=t_max, valinit=t_max_default)
 
 # Отрисовка координатных линий
 for i in range(num_of_u):
@@ -169,6 +175,7 @@ def update(val):
     u0 = slider_u.val
     v0 = slider_v.val
     alpha = slider_alpha.val
+    t_span_max = slider_t_max.val
     p0 = [u0, v0]
     p0t = surface.transform(p0[0], p0[1])
 
@@ -306,6 +313,7 @@ def update(val):
 slider_u.on_changed(update)
 slider_v.on_changed(update)
 slider_alpha.on_changed(update)
+slider_t_max.on_changed(update)
 
 update(0)
 

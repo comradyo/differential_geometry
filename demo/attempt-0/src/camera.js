@@ -54,13 +54,13 @@ export class Camera {
     }
 
     turnLeft() {
-        this.angle -= dAngle;
+        this.angle += dAngle; // Поворачиваемся в касательной плоскости, угол считается от оси X
         this.normalizeAngle();
         this.updateViewBasis();
     }
 
     turnRight() {
-        this.angle += dAngle;
+        this.angle -= dAngle;
         this.normalizeAngle();
         this.updateViewBasis();
     }
