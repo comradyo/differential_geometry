@@ -6,15 +6,54 @@ const dStep = 0.1; // Расстояние, на которое сдвигаем
 let maxTime = 0.05;
 let dTime = 0.05;
 
+// Плоскость Экрана - это плоскость e2, e3, где e3 - вектор, направленный к камере
+
+export class Screen {
+    // TODO: мб считать не через пиксели, а через какие-то пропорции? А то как-то костыльно выглядит
+    constructor(width, height, numOfPixelsX, numOfPixelsY) {
+        this.setSizes(width, height, numOfPixelsX, numOfPixelsY)
+    }
+
+    setSizes(width, height, numOfPixelsX, numOfPixelsY) {
+        this.numOfPixelsX = numOfPixelsX;
+        this.numOfPixelsY = numOfPixelsY;
+        this.ratioX = width / numOfPixelsX;
+        this.ratioY = height / numOfPixelsY;
+
+        //this.centerPos = vectors.Vec(0, 0, 0); // позиция центра экрана (относительно начала координат касательной плоскости)
+        //this.vecX = e2.mul(1/this.numOfPixelsX);
+        //this.vecY = e3.mul(1/this.numOfPixelsX);
+        //this.vecX = vectors.Vec([1/this.numOfPixelsX, 0]); // вектор одного пикселя по X плоскости экрана от центра экрана
+        //this.vecY = vectors.Vec([0, 1/this.numOfPixelsY]); // вектор одного пикселя по Y плоскости экрана от центра экрана
+    }
+
+    // получить координаты пикселя. Правда, нужно подумать, в каком пространстве - наверное, в пространстве относительно касательной плоскости.
+    getPixelCoords(i, j) {
+        // Смещение относительно центра экрана
+        let iCoord = i - this.numOfPixelsX / 2;
+        let jCoord = j - this.numOfPixelsY / 2;
+        let x = this.ratioX * iCoord; // Тут, наверное, не вектор
+        let y = this.ratioY * jCoord;
+        //let vecDot = this.centerPos.add(vecX).add(vecY); // Вектор от начала касательной плоскости до пикселя
+        //return vecDot;
+
+        return {x, y};
+    }
+}
+
 // Camera -- камера игрока
 export class Camera {
     // TODO: нужно ли сюда пихать surface?
-    constructor(fov_angle, surface) {
+    constructor(fov_angle, distToScreen, screen, surface) {
+        this.z = 0.1; // Высота камеры относительно касательной плоскости
+        this.distToScreen = distToScreen;
+        this.screen = screen;
+
         this.fov_angle = fov_angle;
         this.surface = surface;
         this.u = 0;
         this.v = 0;
-        this.pos = surface.transform(this.u, this.v);
+        this.pos = surface.transform(this.u, this.v); // координаты в объемлющем пространстве
         this.angle = 0; // Угол относительно rv
         // Канонический базис в точке
         this.r_u = surface.r_u(this.u, this.v);
@@ -47,9 +86,9 @@ export class Camera {
 
     normalizeAngle() {
         if (this.angle < -Math.PI) {
-            this.angle += 2*Math.PI;
+            this.angle += 2 * Math.PI;
         } else if (this.angle > Math.PI) {
-            this.angle -= 2*Math.PI;
+            this.angle -= 2 * Math.PI;
         }
     }
 
@@ -121,6 +160,17 @@ export class Camera {
             newAngle *= -1;
         }
         this.angle = newAngle;
+    }
+
+    // Получить координаты точки пересечения луча, исходящего из камеры и проходящего через пиксель экрана i, j
+    // с касательной плоскостью (в координатах камеры)
+    getIntersectionPoint(i, j) {
+        let pixelCoords = this.screen.getPixelCoords(i, j);
+        let proportion = this.z / pixelCoords.y;
+        let pX = proportion * pixelCoords.x;
+        let pY = proportion * this.distToScreen;
+
+        return this.e1.mul(pX).add(this.e2.mul(pY));
     }
 
     // TODO: moveLeft, moveRight

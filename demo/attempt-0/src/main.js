@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import Stats from 'stats.js';
 import * as surfaces from './surface.js';
 import { Vec, Arrow } from './vector.js';
 import * as vectors from './vector.js';
@@ -14,17 +15,33 @@ const dAngleWidening = Math.PI / 100; // Для расширения/сужен�
 // Угол обзора камеры на поверхности
 let fov_angle_degrees = 60.0;
 let fov_angle = Math.PI * fov_angle_degrees / 180.0;
+let distToScreen = 0.5;
 // Число геодезических, которые будут отрисовываны на 3D изображении
 const numOfGeodesicLines = 9;
 let deltaFovAngleGeodesics = fov_angle / numOfGeodesicLines;
 
+const screenWidth = 0.5;
+const screenHeight = 0.2;
+const screen = new cameras.Screen(screenWidth, screenHeight, 100, 100);
+
 const surface = new surfaces.Sphere();
 //const surface = new surfaces.Plane(10, 10);
-const camera = new cameras.Camera(fov_angle, surface);
+const camera = new cameras.Camera(fov_angle, distToScreen, screen, surface);
 camera.setCoords(0, 0.1);
 
 // --- 1. НАСТРОЙКА ЛЕВОГО ОКНА (Three.js) ---
 const leftContainer = document.getElementById('left-window');
+
+// 1. Создаем счетчик
+const stats = new Stats();
+stats.showPanel(1); // 0: fps, 1: ms, 2: mb, 3+: custom
+leftContainer.appendChild(stats.dom);
+
+// Стилизуем положение окошка (по умолчанию оно в левом верхнем углу)
+stats.dom.style.position = 'absolute';
+stats.dom.style.top = '0px';
+stats.dom.style.left = 'auto';
+stats.dom.style.right = '0px';
 
 // Создаем сцену, камеру и рендерер
 const scene = new THREE.Scene();
@@ -105,12 +122,20 @@ scene.add(arrow_Ox, arrow_Oy, arrow_Oz);
 // Создаем материал линии (толщина линии в WebGL на большинстве карт всегда 1 пиксель)
 // TODO: толщина линии, пунктир
 const lineMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
+const lineDotsMaterial = new THREE.PointsMaterial({
+  color: 0xff0000,
+  size: 0.03,           // Размер точек в единицах мира
+  sizeAttenuation: true // Уменьшать ли точки по мере удаления от камеры
+});
+
+
 // Создаем геометрию линии из массива точек
 const geodesicLines = new Array(numOfGeodesicLines);
 const lineGeometries = new Array(numOfGeodesicLines);
 for (let i = 0; i < numOfGeodesicLines; i++) {
   lineGeometries[i] = new THREE.BufferGeometry();
-  geodesicLines[i] = new THREE.Line(lineGeometries[i], lineMaterial);
+  //geodesicLines[i] = new THREE.Line(lineGeometries[i], lineMaterial);
+  geodesicLines[i] = new THREE.Points(lineGeometries[i], lineDotsMaterial);
   scene.add(geodesicLines[i]);
 }
 
@@ -131,7 +156,7 @@ for (let i = 0; i < numOfGeodesicLines; i++) {
 }
 
 // Функция для расчёта геодезических на поверхности
-function calculateGeodesics() {
+function calculateGeodesicsOld() {
   let vec_view = camera.e2;
   let vec_e1 = camera.e1;
   let vec_ru = camera.r_u;
@@ -175,10 +200,102 @@ function calculateGeodesics() {
 
 }
 
+// Функция для расчёта геодезических на поверхности
+function calculateGeodesics(w, h) {
+  let vec_view = camera.e2;
+  let vec_e1 = camera.e1;
+  let vec_ru = camera.r_u;
+  let vec_rv = camera.r_v;
+  let u = camera.u;
+  let v = camera.v;
+  let view_norm = vec_view.norm();
+  let i = 0;
+
+  let angle = -(numOfGeodesicLines - 1) / 2 * deltaFovAngleGeodesics;
+  //let angle = -fov_angle / 2;
+  for (let k = 0; k < numOfGeodesicLines; k++) {
+    // Растягиваем пропорционально углу отставания от вектора взгляда (в касательной плоскости)
+    let diff_vec = vec_e1.mul(view_norm * Math.tan(angle));
+    let tmp_vec_view = vec_view.add(diff_vec);
+
+    let tmp_vec_view_decomp = vectors.decomposition(tmp_vec_view, vec_ru, vec_rv);
+    let currentRayState = [u, v, tmp_vec_view_decomp[0], tmp_vec_view_decomp[1]];
+
+    // Берем заранее выделенный плоский массив для этой линии
+    const positions = geodesicPositionBuffers[k];
+
+    // TODO: мб делать не число шагов, а длину/время t?
+    for (let j = 0; j < geodesicPointsCount; j++) {
+
+      // Вектор в касательной плоскости до точки пересечения луча из камеры, проходящего через пиксель (x, y)
+      let vecToCrossingPoint = camera.getIntersectionPoint(i, j);
+      let tmp_vec_view_decomp = vectors.decomposition(vecToCrossingPoint, vec_ru, vec_rv);
+      currentRayState = [u, v, tmp_vec_view_decomp[0], tmp_vec_view_decomp[1]];
+      calculations.rk4StepInPlace(currentRayState, dT, surface);
+
+      let coords = surface.transform(currentRayState[0], currentRayState[1]);
+
+      //calculations.rk4StepInPlace(currentRayState, dT, surface);
+      //let coords = surface.transform(currentRayState[0], currentRayState[1]);
+
+      // Записываем голые числа прямо в массив без создания THREE.Vector3
+      let stride = j * 3;
+      positions[stride] = coords[0]; // X
+      positions[stride + 1] = coords[1]; // Y
+      positions[stride + 2] = coords[2]; // Z
+
+      // Тут же можно проверять пересечение луча со стенами/объектами
+    }
+
+    // Сообщаем Three.js, что данные в буфере изменились, и их надо отправить на GPU.
+    lineGeometries[k].attributes.position.needsUpdate = true;
+    i += w / numOfGeodesicLines;
+    angle += deltaFovAngleGeodesics;
+  }
+
+
+  /*
+
+  let vec_ru = camera.r_u;
+  let vec_rv = camera.r_v;
+  let u = camera.u;
+  let v = camera.v;
+  let currentRayState = [u, v, 0, 0];
+
+  let i = 0;
+  for (let k = 0; k < numOfGeodesicLines; k++) {
+    const positions = geodesicPositionBuffers[k];
+
+    for (let j = 0; j < h; j++) {
+      // Вектор в касательной плоскости до точки пересечения луча из камеры, проходящего через пиксель (x, y)
+      let vecToCrossingPoint = camera.getIntersectionPoint(i, j);
+      let tmp_vec_view_decomp = vectors.decomposition(vecToCrossingPoint, vec_ru, vec_rv);
+      currentRayState = [u, v, tmp_vec_view_decomp[0], tmp_vec_view_decomp[1]];
+      calculations.rk4StepInPlace(currentRayState, dT, surface);
+
+      let coords = surface.transform(currentRayState[0], currentRayState[1]);
+
+      // Записываем голые числа прямо в массив без создания THREE.Vector3
+      let stride = j * 3;
+      positions[stride] = coords[0] * 10; // X
+      positions[stride + 1] = coords[1]; // Y
+      positions[stride + 2] = coords[2] * 10; // Z
+
+      console.log(coords);
+
+      // TODO: проверять пересечение луча со стенами/объектами
+    }
+
+    lineGeometries[k].attributes.position.needsUpdate = true;
+    i += w / numOfGeodesicLines;
+  }
+    */
+}
+
 // Рендеринг вида из камеры
 // Для плоскости рендериг некорректный - искажается перспектива, нужно понять, как корректно делать отрисовку.
 // Скорее всего, нужно пропорционально (либо обратно пропорционально) увеличивать длину dT, но пока не понял, как
-function renderCameraView(w, h) {
+function renderCameraViewOld(w, h) {
   let angle = -(canvas.width - 1) / 2 * dAngle;
   let vec_view = camera.e2;
   let vec_e1 = camera.e1;
@@ -225,6 +342,54 @@ function renderCameraView(w, h) {
   }
 }
 
+// Для плоскости рендериг некорректный - искажается перспектива, нужно понять, как корректно делать отрисовку.
+// Скорее всего, нужно пропорционально (либо обратно пропорционально) увеличивать длину dT, но пока не понял, как
+function renderCameraView(w, h) {
+  let angle = -(canvas.width - 1) / 2 * dAngle;
+  let vec_view = camera.e2;
+  let vec_e1 = camera.e1;
+  let vec_ru = camera.r_u;
+  let vec_rv = camera.r_v;
+  let u = camera.u;
+  let v = camera.v;
+  let view_norm = vec_view.norm();
+
+  let diff_vec = vec_e1.mul(view_norm * Math.tan(angle));
+  let tmp_vec_view = vec_view.add(diff_vec);
+  let tmp_vec_view_decomp = vectors.decomposition(tmp_vec_view, vec_ru, vec_rv);
+  let currentRayState = [u, v, tmp_vec_view_decomp[0], tmp_vec_view_decomp[1]];
+  let i = 0;
+  let x = 0;
+  let y = 0;
+
+  for (x = 0; x < w; x++) {
+    for (y = 0; y < h; y++) {
+      // Вектор в касательной плоскости до точки пересечения луча из камеры, проходящего через пиксель (x, y)
+      let vecToCrossingPoint = camera.getIntersectionPoint(x, y);
+      //console.log("point: ", vecToCrossingPoint.data[0], vecToCrossingPoint.data[1], vecToCrossingPoint.data[2]);
+      tmp_vec_view_decomp = vectors.decomposition(vecToCrossingPoint, vec_ru, vec_rv);
+      currentRayState = [u, v, tmp_vec_view_decomp[0], tmp_vec_view_decomp[1]];
+      //console.log("before: ", currentRayState)
+      calculations.rk4StepInPlace(currentRayState, dT, surface);
+
+      // Индекс первого цветового канала пикселя
+      i = ((canvas.height - y) * w + x) * 4;
+
+      let normalizeCoordinates = surface.normalizeCoordinates(currentRayState[0], currentRayState[1]);
+      let color = texture_loader.getPixelColor(normalizeCoordinates.uNorm, normalizeCoordinates.vNorm);
+
+      //console.log("after: ", currentRayState)
+
+      image.data[i] = color.r;
+      image.data[i + 1] = color.g;
+      image.data[i + 2] = color.b;
+      image.data[i + 3] = 255; // прозрачность
+
+      // TODO: проверять пересечение луча со стенами/объектами
+    }
+  }
+}
+
 // DEBUG
 function renderSurfaceTexture(w, h) {
   let u = 0;
@@ -262,6 +427,7 @@ function resizeCanvas() {
   canvas.width = window.innerWidth / 2;
   canvas.height = window.innerHeight;
   image = ctx.createImageData(canvas.width, canvas.height);
+  screen.setSizes(screenWidth, screenHeight, canvas.width, canvas.height);
   dAngle = fov_angle / canvas.width;
 }
 resizeCanvas();
@@ -270,8 +436,8 @@ resizeCanvas();
 // При движении мыши над левым окном мы обновляем глобальные координаты
 leftContainer.addEventListener('mousemove', (event) => {
   // Нормализуем координаты мыши от 0 до 1
-  mouseX = event.clientX / (window.innerWidth / 2);
-  mouseY = event.clientY / window.innerHeight;
+  //mouseX = event.clientX / (window.innerWidth / 2);
+  //mouseY = event.clientY / window.innerHeight;
 });
 
 // Пересчитываем размеры окон, если пользователь изменил размер браузера
@@ -287,51 +453,65 @@ window.addEventListener('keydown', (event) => {
   switch (event.key) {
     case 'ArrowLeft':
       camera.turnLeft();
-      calculateGeodesics();
+      calculateGeodesics(canvas.width, canvas.height / 2);
       //moveLeft();
       break;
 
     case 'ArrowRight':
       camera.turnRight();
-      calculateGeodesics();
+      calculateGeodesics(canvas.width, canvas.height / 2);
       //moveRight();
       break;
 
     case 'ArrowUp':
       camera.moveForward();
-      calculateGeodesics();
+      calculateGeodesics(canvas.width, canvas.height / 2);
       //moveRight();
       break;
 
     case 'ArrowDown':
       camera.moveBackward();
-      calculateGeodesics();
+      calculateGeodesics(canvas.width, canvas.height / 2);
       //moveRight();
       break;
 
     case 'w':
       dT += ddT;
-      calculateGeodesics();
+      calculateGeodesics(canvas.width, canvas.height / 2);
       break;
 
     case 's':
       dT -= ddT;
-      calculateGeodesics();
+      calculateGeodesics(canvas.width, canvas.height / 2);
       break;
 
     case 'e':
       fov_angle += dAngleWidening;
       deltaFovAngleGeodesics = fov_angle / numOfGeodesicLines;
       dAngle = fov_angle / canvas.width;
-      calculateGeodesics();
+      calculateGeodesics(canvas.width, canvas.height / 2);
       break;
 
     case 'q':
       fov_angle -= dAngleWidening;
       deltaFovAngleGeodesics = fov_angle / numOfGeodesicLines;
       dAngle = fov_angle / canvas.width;
-      calculateGeodesics();
+      calculateGeodesics(canvas.width, canvas.height / 2);
       break;
+
+    case 'z':
+      camera.z += 0.1;
+      calculateGeodesics(canvas.width, canvas.height / 2);
+      break;
+
+    case 'x':
+      camera.z -= 0.1;
+      calculateGeodesics(canvas.width, canvas.height / 2);
+      break;
+
+    case 't':
+      //renderCameraView(canvas.width, canvas.height / 2);
+      calculateGeodesics(canvas.width / 2, geodesicPointsCount);
 
     default:
       // Игнорируем все остальные клавиши
@@ -342,12 +522,15 @@ window.addEventListener('keydown', (event) => {
   event.preventDefault();
 });
 
-calculateGeodesics(); // начальный расчёт геодезических
+calculateGeodesics(canvas.width, canvas.height / 2); // начальный расчёт геодезических
+
 // --- 4. ЕДИНЫЙ ИГРОВОЙ ЦИКЛ (Отрисовка) ---
 function animate() {
   // Запрашиваем следующий кадр анимации (60 FPS)
   // TODO: разобраться, что это и зачем
   requestAnimationFrame(animate);
+
+  stats.begin(); // <--- Начало замера
 
   // Обновляем контроллер каждый кадр, чтобы работала инерция (damping)
   controls.update();
@@ -379,6 +562,8 @@ function animate() {
 
   // Вывод вида из камеры
   ctx.putImageData(image, 0, 0);
+
+  stats.end(); // <--- Конец замера
 }
 
 // Запуск цикла отрисовки
