@@ -22,11 +22,13 @@ let deltaFovAngleGeodesics = fov_angle / numOfGeodesicLines;
 
 const screenWidth = 0.5;
 const screenHeight = 0.2;
-const screen = new cameras.Screen(screenWidth, screenHeight, 100, 100);
+const screen = new cameras.Screen(screenWidth, screenHeight, 200, 100);
 
+const dZ = 0.01;
+const cameraZ = 0.1;
 const surface = new surfaces.Sphere();
 //const surface = new surfaces.Plane(10, 10);
-const camera = new cameras.Camera(fov_angle, distToScreen, screen, surface);
+const camera = new cameras.Camera(fov_angle, distToScreen, screen, surface, cameraZ);
 camera.setCoords(0, 0.1);
 
 // --- 1. НАСТРОЙКА ЛЕВОГО ОКНА (Three.js) ---
@@ -212,11 +214,11 @@ function calculateGeodesics(w, h) {
   let i = 0;
 
   let angle = -(numOfGeodesicLines - 1) / 2 * deltaFovAngleGeodesics;
-  //let angle = -fov_angle / 2;
-  for (let k = 0; k < numOfGeodesicLines; k++) {
+  for (let k = 0; k < numOfGeodesicLines; k++) { // Столбец
     // Растягиваем пропорционально углу отставания от вектора взгляда (в касательной плоскости)
+    // UPD: НЕ растягиваем
     let diff_vec = vec_e1.mul(view_norm * Math.tan(angle));
-    let tmp_vec_view = vec_view.add(diff_vec);
+    let tmp_vec_view = vec_view.add(diff_vec).normalize();
 
     let tmp_vec_view_decomp = vectors.decomposition(tmp_vec_view, vec_ru, vec_rv);
     let currentRayState = [u, v, tmp_vec_view_decomp[0], tmp_vec_view_decomp[1]];
@@ -224,27 +226,30 @@ function calculateGeodesics(w, h) {
     // Берем заранее выделенный плоский массив для этой линии
     const positions = geodesicPositionBuffers[k];
 
-    // TODO: мб делать не число шагов, а длину/время t?
-    for (let j = 0; j < geodesicPointsCount; j++) {
+    let j = 0;
+    let nextDist = camera.getDistToIntersectionPoint(i, j);
+    let curDist = 0;
+    let numOfSteps = 0;
 
-      // Вектор в касательной плоскости до точки пересечения луча из камеры, проходящего через пиксель (x, y)
-      let vecToCrossingPoint = camera.getIntersectionPoint(i, j);
-      let tmp_vec_view_decomp = vectors.decomposition(vecToCrossingPoint, vec_ru, vec_rv);
-      currentRayState = [u, v, tmp_vec_view_decomp[0], tmp_vec_view_decomp[1]];
+    while (numOfSteps < 1000) {
       calculations.rk4StepInPlace(currentRayState, dT, surface);
+      curDist += dT;
 
-      let coords = surface.transform(currentRayState[0], currentRayState[1]);
-
-      //calculations.rk4StepInPlace(currentRayState, dT, surface);
-      //let coords = surface.transform(currentRayState[0], currentRayState[1]);
-
-      // Записываем голые числа прямо в массив без создания THREE.Vector3
-      let stride = j * 3;
-      positions[stride] = coords[0]; // X
-      positions[stride + 1] = coords[1]; // Y
-      positions[stride + 2] = coords[2]; // Z
+      if (curDist >= nextDist) {
+        let coords = surface.transform(currentRayState[0], currentRayState[1]);
+        let stride = j * 3;
+        positions[stride] = coords[0]; // X
+        positions[stride + 1] = coords[1]; // Y
+        positions[stride + 2] = coords[2]; // Z
+        j++;
+        if (j == h) {
+          break;
+        }
+        nextDist = camera.getDistToIntersectionPoint(i, j);
+      }
 
       // Тут же можно проверять пересечение луча со стенами/объектами
+      numOfSteps++;
     }
 
     // Сообщаем Three.js, что данные в буфере изменились, и их надо отправить на GPU.
@@ -252,44 +257,6 @@ function calculateGeodesics(w, h) {
     i += w / numOfGeodesicLines;
     angle += deltaFovAngleGeodesics;
   }
-
-
-  /*
-
-  let vec_ru = camera.r_u;
-  let vec_rv = camera.r_v;
-  let u = camera.u;
-  let v = camera.v;
-  let currentRayState = [u, v, 0, 0];
-
-  let i = 0;
-  for (let k = 0; k < numOfGeodesicLines; k++) {
-    const positions = geodesicPositionBuffers[k];
-
-    for (let j = 0; j < h; j++) {
-      // Вектор в касательной плоскости до точки пересечения луча из камеры, проходящего через пиксель (x, y)
-      let vecToCrossingPoint = camera.getIntersectionPoint(i, j);
-      let tmp_vec_view_decomp = vectors.decomposition(vecToCrossingPoint, vec_ru, vec_rv);
-      currentRayState = [u, v, tmp_vec_view_decomp[0], tmp_vec_view_decomp[1]];
-      calculations.rk4StepInPlace(currentRayState, dT, surface);
-
-      let coords = surface.transform(currentRayState[0], currentRayState[1]);
-
-      // Записываем голые числа прямо в массив без создания THREE.Vector3
-      let stride = j * 3;
-      positions[stride] = coords[0] * 10; // X
-      positions[stride + 1] = coords[1]; // Y
-      positions[stride + 2] = coords[2] * 10; // Z
-
-      console.log(coords);
-
-      // TODO: проверять пересечение луча со стенами/объектами
-    }
-
-    lineGeometries[k].attributes.position.needsUpdate = true;
-    i += w / numOfGeodesicLines;
-  }
-    */
 }
 
 // Рендеринг вида из камеры
@@ -344,7 +311,7 @@ function renderCameraViewOld(w, h) {
 
 // Для плоскости рендериг некорректный - искажается перспектива, нужно понять, как корректно делать отрисовку.
 // Скорее всего, нужно пропорционально (либо обратно пропорционально) увеличивать длину dT, но пока не понял, как
-function renderCameraView(w, h) {
+function renderCameraViewOld1(w, h) {
   let angle = -(canvas.width - 1) / 2 * dAngle;
   let vec_view = camera.e2;
   let vec_e1 = camera.e1;
@@ -366,10 +333,8 @@ function renderCameraView(w, h) {
     for (y = 0; y < h; y++) {
       // Вектор в касательной плоскости до точки пересечения луча из камеры, проходящего через пиксель (x, y)
       let vecToCrossingPoint = camera.getIntersectionPoint(x, y);
-      //console.log("point: ", vecToCrossingPoint.data[0], vecToCrossingPoint.data[1], vecToCrossingPoint.data[2]);
       tmp_vec_view_decomp = vectors.decomposition(vecToCrossingPoint, vec_ru, vec_rv);
       currentRayState = [u, v, tmp_vec_view_decomp[0], tmp_vec_view_decomp[1]];
-      //console.log("before: ", currentRayState)
       calculations.rk4StepInPlace(currentRayState, dT, surface);
 
       // Индекс первого цветового канала пикселя
@@ -378,8 +343,6 @@ function renderCameraView(w, h) {
       let normalizeCoordinates = surface.normalizeCoordinates(currentRayState[0], currentRayState[1]);
       let color = texture_loader.getPixelColor(normalizeCoordinates.uNorm, normalizeCoordinates.vNorm);
 
-      //console.log("after: ", currentRayState)
-
       image.data[i] = color.r;
       image.data[i + 1] = color.g;
       image.data[i + 2] = color.b;
@@ -387,6 +350,71 @@ function renderCameraView(w, h) {
 
       // TODO: проверять пересечение луча со стенами/объектами
     }
+  }
+}
+
+// Для плоскости рендериг некорректный - искажается перспектива, нужно понять, как корректно делать отрисовку.
+// Скорее всего, нужно пропорционально (либо обратно пропорционально) увеличивать длину dT, но пока не понял, как
+function renderCameraView(w, h) {
+  let angle = -(canvas.width - 1) / 2 * dAngle;
+  let vec_view = camera.e2;
+  let vec_e1 = camera.e1;
+  let vec_ru = camera.r_u;
+  let vec_rv = camera.r_v;
+  let u = camera.u;
+  let v = camera.v;
+  let view_norm = vec_view.norm();
+
+  let diff_vec = vec_e1.mul(view_norm * Math.tan(angle));
+  let tmp_vec_view = vec_view.add(diff_vec);
+  let tmp_vec_view_decomp = vectors.decomposition(tmp_vec_view, vec_ru, vec_rv);
+  let currentRayState = [u, v, tmp_vec_view_decomp[0], tmp_vec_view_decomp[1]];
+  let stride = 0;
+  let x = 0;
+  let j = 0;
+
+  for (x = 0; x < w; x++) {
+    let diff_vec = vec_e1.mul(view_norm * Math.tan(angle));
+    let tmp_vec_view = vec_view.add(diff_vec).normalize();
+
+    let tmp_vec_view_decomp = vectors.decomposition(tmp_vec_view, vec_ru, vec_rv);
+    currentRayState = [u, v, tmp_vec_view_decomp[0], tmp_vec_view_decomp[1]];
+
+    j = 0;
+    let nextDist = camera.getDistToIntersectionPoint(x, j);
+    let curDist = 0;
+    let numOfSteps = 0;
+
+    let tempDT = dT
+    while (numOfSteps < 1000) {
+      calculations.rk4StepInPlace(currentRayState, tempDT, surface);
+      curDist += tempDT;
+
+      if (curDist >= nextDist) {
+        // Индекс первого цветового канала пикселя
+        stride = ((canvas.height - j) * w + x) * 4;
+
+        let normalizeCoordinates = surface.normalizeCoordinates(currentRayState[0], currentRayState[1]);
+        let color = texture_loader.getPixelColor(normalizeCoordinates.uNorm, normalizeCoordinates.vNorm);
+
+        image.data[stride] = color.r;
+        image.data[stride + 1] = color.g;
+        image.data[stride + 2] = color.b;
+        image.data[stride + 3] = 255; // прозрачность
+
+        j++;
+        if (j == h) {
+          tempDT *= 1.2;
+          break;
+        }
+        nextDist = camera.getDistToIntersectionPoint(x, j);
+      }
+
+      numOfSteps++;
+    }
+
+    angle += dAngle;
+    // TODO: проверять пересечение луча со стенами/объектами
   }
 }
 
@@ -448,41 +476,49 @@ window.addEventListener('resize', () => {
   resizeCanvas();
 });
 
+let renderY = canvas.height / 2;
+
 // Обработка нажатия на клавишу
 window.addEventListener('keydown', (event) => {
   switch (event.key) {
     case 'ArrowLeft':
       camera.turnLeft();
       calculateGeodesics(canvas.width, canvas.height / 2);
+      renderCameraView(canvas.width, renderY);
       //moveLeft();
       break;
 
     case 'ArrowRight':
       camera.turnRight();
       calculateGeodesics(canvas.width, canvas.height / 2);
+      renderCameraView(canvas.width, renderY);
       //moveRight();
       break;
 
     case 'ArrowUp':
       camera.moveForward();
       calculateGeodesics(canvas.width, canvas.height / 2);
+      renderCameraView(canvas.width, renderY);
       //moveRight();
       break;
 
     case 'ArrowDown':
       camera.moveBackward();
       calculateGeodesics(canvas.width, canvas.height / 2);
+      renderCameraView(canvas.width, renderY);
       //moveRight();
       break;
 
     case 'w':
       dT += ddT;
       calculateGeodesics(canvas.width, canvas.height / 2);
+      renderCameraView(canvas.width, renderY);
       break;
 
     case 's':
       dT -= ddT;
       calculateGeodesics(canvas.width, canvas.height / 2);
+      renderCameraView(canvas.width, renderY);
       break;
 
     case 'e':
@@ -490,6 +526,7 @@ window.addEventListener('keydown', (event) => {
       deltaFovAngleGeodesics = fov_angle / numOfGeodesicLines;
       dAngle = fov_angle / canvas.width;
       calculateGeodesics(canvas.width, canvas.height / 2);
+      renderCameraView(canvas.width, renderY);
       break;
 
     case 'q':
@@ -497,21 +534,26 @@ window.addEventListener('keydown', (event) => {
       deltaFovAngleGeodesics = fov_angle / numOfGeodesicLines;
       dAngle = fov_angle / canvas.width;
       calculateGeodesics(canvas.width, canvas.height / 2);
+      renderCameraView(canvas.width, renderY);
       break;
 
     case 'z':
-      camera.z += 0.1;
+      camera.z += dZ;
+      dT = Math.abs(camera.z / 10); // Эвристика мб некорерктно
       calculateGeodesics(canvas.width, canvas.height / 2);
+      renderCameraView(canvas.width, renderY);
       break;
 
     case 'x':
-      camera.z -= 0.1;
+      camera.z -= dZ;
+      dT = Math.abs(camera.z / 10);
       calculateGeodesics(canvas.width, canvas.height / 2);
+      renderCameraView(canvas.width, renderY);
       break;
 
     case 't':
-      //renderCameraView(canvas.width, canvas.height / 2);
-      calculateGeodesics(canvas.width / 2, geodesicPointsCount);
+      renderCameraView(canvas.width, canvas.height / 2);
+      //calculateGeodesics(canvas.width / 2, geodesicPointsCount);
 
     default:
       // Игнорируем все остальные клавиши
@@ -553,7 +595,7 @@ function animate() {
   // Очищаем холст
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  renderCameraView(canvas.width, canvas.height / 2);
+  //renderCameraView(canvas.width, canvas.height / 2);
   //renderCameraView(canvas.width, canvas.height);
   //renderCameraView(canvas.width, 100);
 

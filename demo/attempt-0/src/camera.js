@@ -17,8 +17,8 @@ export class Screen {
     setSizes(width, height, numOfPixelsX, numOfPixelsY) {
         this.numOfPixelsX = numOfPixelsX;
         this.numOfPixelsY = numOfPixelsY;
-        this.ratioX = width / numOfPixelsX;
-        this.ratioY = height / numOfPixelsY;
+        this.pixelWidth = width / numOfPixelsX; // Ширина одного пикселя
+        this.pixelHeight = height / numOfPixelsY; // Высота одного пикселя
 
         //this.centerPos = vectors.Vec(0, 0, 0); // позиция центра экрана (относительно начала координат касательной плоскости)
         //this.vecX = e2.mul(1/this.numOfPixelsX);
@@ -27,25 +27,23 @@ export class Screen {
         //this.vecY = vectors.Vec([0, 1/this.numOfPixelsY]); // вектор одного пикселя по Y плоскости экрана от центра экрана
     }
 
-    // получить координаты пикселя. Правда, нужно подумать, в каком пространстве - наверное, в пространстве относительно касательной плоскости.
+    // получить координаты пикселя в плоскости экрана (в пространстве относительно касательной плоскости).
     getPixelCoords(i, j) {
         // Смещение относительно центра экрана
         let iCoord = i - this.numOfPixelsX / 2;
         let jCoord = j - this.numOfPixelsY / 2;
-        let x = this.ratioX * iCoord; // Тут, наверное, не вектор
-        let y = this.ratioY * jCoord;
-        //let vecDot = this.centerPos.add(vecX).add(vecY); // Вектор от начала касательной плоскости до пикселя
-        //return vecDot;
+        let x = this.pixelWidth * iCoord;
+        let z = this.pixelHeight * jCoord;
 
-        return {x, y};
+        return {x, z};
     }
 }
 
 // Camera -- камера игрока
 export class Camera {
     // TODO: нужно ли сюда пихать surface?
-    constructor(fov_angle, distToScreen, screen, surface) {
-        this.z = 0.1; // Высота камеры относительно касательной плоскости
+    constructor(fov_angle, distToScreen, screen, surface, z) {
+        this.z = z; // Высота камеры относительно касательной плоскости
         this.distToScreen = distToScreen;
         this.screen = screen;
 
@@ -164,13 +162,23 @@ export class Camera {
 
     // Получить координаты точки пересечения луча, исходящего из камеры и проходящего через пиксель экрана i, j
     // с касательной плоскостью (в координатах камеры)
+    // TODO: понять, откуда начинается j, а то мб изображение перевёрнуто
     getIntersectionPoint(i, j) {
         let pixelCoords = this.screen.getPixelCoords(i, j);
-        let proportion = this.z / pixelCoords.y;
+        let proportion = this.z / pixelCoords.z;
         let pX = proportion * pixelCoords.x;
         let pY = proportion * this.distToScreen;
 
         return this.e1.mul(pX).add(this.e2.mul(pY));
+    }
+
+    getDistToIntersectionPoint(i, j) {
+        let pixelCoords = this.screen.getPixelCoords(i, j);
+        let proportion = Math.abs(this.z / pixelCoords.z);
+
+        return proportion * Math.sqrt(
+            pixelCoords.x * pixelCoords.x + this.distToScreen * this.distToScreen
+        );
     }
 
     // TODO: moveLeft, moveRight
