@@ -9,7 +9,7 @@ import * as cameras from './camera.js'
 import * as texture_loader from './texture.js'
 
 // Задаем фиксированное низкое разрешение для расчётов
-const RENDER_W = 160; 
+const RENDER_W = 160;
 const RENDER_H = 120;
 
 let dT = 0.01;
@@ -437,7 +437,7 @@ function renderCameraView(w, h) {
 
         j++;
         if (j == h) {
-          tempDT *= 1.1; // Эвристика, мб можно более эффективно
+          tempDT *= 1.2; // Эвристика, мб можно более эффективно
           break;
         }
         nextDist = camera.getDistToIntersectionPoint(x, j);
@@ -485,8 +485,9 @@ let image = ctx.createImageData(canvas.width, canvas.height);
 let dAngle = fov_angle / canvas.width;
 // Подгоняем размер 2D-холста под размер его окна
 function resizeCanvas() {
-  canvas.width = window.innerWidth / 2;
-  canvas.height = window.innerHeight;
+  canvas.width = RENDER_W;
+  canvas.height = RENDER_H;
+
   image = ctx.createImageData(canvas.width, canvas.height);
   screen.setSizes(screenWidth, screenHeight, canvas.width, canvas.height);
   dAngle = fov_angle / canvas.width;
@@ -508,8 +509,8 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth / 2, window.innerHeight);
   resizeCanvas();
   renderY = canvas.height / 2;
-  geodesicPointsCount = Math.floor(canvas.height / 2);
-  initGeodesicArrays();
+  //geodesicPointsCount = Math.floor(canvas.height / 2);
+  //initGeodesicArrays();
   calculateGeodesics();
 });
 
@@ -608,7 +609,7 @@ window.addEventListener('keydown', (event) => {
   event.preventDefault();
 });
 
-geodesicPointsCount = Math.floor(canvas.height / 2);
+geodesicPointsCount = RENDER_H;
 initGeodesicArrays(); // Начальная инициализация геодезических линий на 3д картинке
 calculateGeodesics(canvas.width, canvas.height / 2); // начальный расчёт геодезических
 
@@ -641,7 +642,7 @@ function animate() {
   // Очищаем холст
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  //renderCameraView(canvas.width, canvas.height / 2);
+  renderCameraView(canvas.width, canvas.height / 2);
   //renderCameraView(canvas.width, canvas.height);
   //renderCameraView(canvas.width, 100);
 
