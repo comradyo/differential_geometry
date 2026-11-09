@@ -5,26 +5,21 @@ export function geodesicDerivativesInPlace(dot_u, dot_v, Gamma, k) {
     k[0] = dot_u;
     k[1] = dot_v;
     k[2] = -(
-        Gamma[0][0][0] * dot_u ** 2 +
-        2 * Gamma[0][1][0] * dot_u * dot_v +
-        Gamma[1][1][0] * dot_v ** 2
+        Gamma.k0_00 * dot_u ** 2 +
+        2 *Gamma.k0_10 * dot_u * dot_v +
+       Gamma.k1_10 * dot_v ** 2
     );
     k[3] = -(
-        Gamma[0][0][1] * dot_u ** 2 +
-        2 * Gamma[0][1][1] * dot_u * dot_v +
-        Gamma[1][1][1] * dot_v ** 2
+        Gamma.k0_01 * dot_u ** 2 +
+        2 * Gamma.k0_11 * dot_u * dot_v +
+        Gamma.k1_11 * dot_v ** 2
     );
 }
 
 // Один шаг метода Рунге-Кутты 4-го порядка (RK4)
 // state = [u, v, dot_u, dot_v]
-export function rk4StepInPlace(state, dt, surface) {
+export function rk4StepInPlace(state, dt, surface, k1, k2, k3, k4) {
     let u = state[0], v = state[1], dot_u = state[2], dot_v = state[3];
-
-    const k1 = new Float64Array(4);
-    const k2 = new Float64Array(4);
-    const k3 = new Float64Array(4);
-    const k4 = new Float64Array(4);
 
     // --- k1 (Шаг в исходной точке) ---
     geodesicDerivativesInPlace(dot_u, dot_v, surface.Christoffel_Symbols(u, v), k1);
@@ -49,4 +44,3 @@ export function rk4StepInPlace(state, dt, surface) {
     state[2] = dot_u + (dt / 6) * (k1[2] + 2 * k2[2] + 2 * k3[2] + k4[2]);
     state[3] = dot_v + (dt / 6) * (k1[3] + 2 * k2[3] + 2 * k3[3] + k4[3]);
 }
-

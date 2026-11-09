@@ -1,12 +1,18 @@
 import * as vectors from './vector.js'
 import * as calculations from './calculations.js'
 
-const dAngle = 0.01; // на какой угол поворачивается камера при нажатии на кнопку
+const dAngle = 0.05; // на какой угол поворачивается камера при нажатии на кнопку
 const dStep = 0.1; // Расстояние, на которое сдвигаемся при движении вперед
 let maxTime = 0.05;
 let dTime = 0.05;
 
 // Плоскость Экрана - это плоскость e2, e3, где e3 - вектор, направленный к камере
+
+// Мб излишняя и не сильно влияющая оптимизация
+const k1Cam = new Float64Array(4);
+const k2Cam = new Float64Array(4);
+const k3Cam = new Float64Array(4);
+const k4Cam = new Float64Array(4);
 
 export class Screen {
     // TODO: мб считать не через пиксели, а через какие-то пропорции? А то как-то костыльно выглядит
@@ -121,7 +127,7 @@ export class Camera {
         // TODO: нужен ли здесь цикл? Или просто один раз смещаемся?
         // Наверное, в игре нужен будет цикл - для инертности бега
         for (let t = 0; t < maxTime; t += dTime) {
-            calculations.rk4StepInPlace(rayState, dTime, this.surface);
+            calculations.rk4StepInPlace(rayState, dTime, this.surface, k1Cam, k2Cam, k3Cam, k4Cam);
         }
 
         this.u = rayState[0];
@@ -143,7 +149,7 @@ export class Camera {
         let rayState = [this.u, this.v, vec_view_decomp[0], vec_view_decomp[1]];
 
         for (let t = 0; t < maxTime; t += dTime) {
-            calculations.rk4StepInPlace(rayState, dTime, this.surface);
+            calculations.rk4StepInPlace(rayState, dTime, this.surface, k1Cam, k2Cam, k3Cam, k4Cam);
         }
 
         this.u = rayState[0];

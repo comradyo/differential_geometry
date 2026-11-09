@@ -127,6 +127,19 @@ export class Surface2D {
 
     // Символы кристоффеля, оптимизированная версия
     Christoffel_Symbols(u, v) {
+        /*
+        return {
+            k0_00: 0, 
+            k0_01: 0, 
+            k0_10: 0, 
+            k0_11: 0, 
+            k1_00: 0, 
+            k1_01: 0, 
+            k1_10: 0, 
+            k1_11: 0,
+        };
+        */
+
         const g_inv = this.G_inverse(u, v);
 
         let x_u = this.Xu(u, v), y_u = this.Yu(u, v), z_u = this.Zu(u, v);
@@ -153,19 +166,32 @@ export class Surface2D {
         let u11 = x_vv * x_u + y_vv * y_u + z_vv * z_u;
         let v11 = x_vv * x_v + y_vv * y_v + z_vv * z_v;
 
-        return [
-            [
-                [g_inv[0][0] * u00 + g_inv[0][1] * v00, g_inv[1][0] * u00 + g_inv[1][1] * v00],
-                [g_inv[0][0] * u01 + g_inv[0][1] * v01, g_inv[1][0] * u01 + g_inv[1][1] * v01],
-            ],
-            [
-                [g_inv[0][0] * u10 + g_inv[0][1] * v10, g_inv[1][0] * u10 + g_inv[1][1] * v10],
-                [g_inv[0][0] * u11 + g_inv[0][1] * v11, g_inv[1][0] * u11 + g_inv[1][1] * v11],
-            ],
-        ];
+        return {
+            k0_00: g_inv[0][0] * u00 + g_inv[0][1] * v00, 
+            k0_01: g_inv[1][0] * u00 + g_inv[1][1] * v00, 
+            k0_10: g_inv[0][0] * u01 + g_inv[0][1] * v01, 
+            k0_11: g_inv[1][0] * u01 + g_inv[1][1] * v01, 
+            k1_00: g_inv[0][0] * u10 + g_inv[0][1] * v10, 
+            k1_01: g_inv[1][0] * u10 + g_inv[1][1] * v10, 
+            k1_10: g_inv[0][0] * u11 + g_inv[0][1] * v11, 
+            k1_11: g_inv[1][0] * u11 + g_inv[1][1] * v11,
+        };
     }
 
 }
+
+/*
+        let s0_00 = 0;
+        let s0_01 = 1;
+        let s0_10 = 0;
+        let s0_11 = 1;
+        let s1_00 = 0;
+        let s1_01 = 1;
+        let s1_10 = 0;
+        let s1_11 = 1;
+
+        return {s0_00, s0_01, s0_10, s0_11, s1_00, s1_01, s1_10, s1_11};
+*/
 
 // Класс Сферы, наследующий Surface2D
 export class Sphere extends Surface2D {
