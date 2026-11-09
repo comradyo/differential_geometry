@@ -9,8 +9,8 @@ import * as cameras from './camera.js'
 import * as texture_loader from './texture.js'
 
 // Задаем фиксированное низкое разрешение для расчётов
-const RENDER_W = 400;
-const RENDER_H = 320;
+const RENDER_W = 500;
+const RENDER_H = 500;
 
 let dT = 0.01;
 let maxNumOfSteps = 10000;
@@ -92,7 +92,8 @@ const controls = new OrbitControls(threeCamera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 
-const surfaceTextureURL = 'src/123.png';
+//const surfaceTextureURL = 'src/123.png';
+const surfaceTextureURL = 'src/earth.jpg';
 texture_loader.loadTextureToCPU(surfaceTextureURL);
 
 // 1. Создаем каркас сферы (радиус, сегменты по u, сегменты по v)
@@ -151,7 +152,7 @@ const arrow_Oz = new Arrow([0, 0, 0], [0, 0, 10], "blue", 0.05, 0.05);
 scene.add(arrow_Ox, arrow_Oy, arrow_Oz);
 ////////////////
 
-// Создаем материал линии (толщина линии в WebGL на большинстве карт всегда 1 пиксель)
+// Создаем материал линии
 // TODO: толщина линии, пунктир
 const lineMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
 const lineDotsMaterial = new THREE.PointsMaterial({
@@ -357,6 +358,8 @@ const k3 = new Float64Array(4);
 const k4 = new Float64Array(4);
 const cameraRayState = new Float64Array(4);
 
+let renderMode = 1;
+
 // Для плоскости тут рендериг некорректный - искажается перспектива (в отличии от Old1), нужно понять, как корректно делать отрисовку.
 function renderCameraView(w, h) {
   let angle = -(canvas.width - 1) / 2 * dAngle;
@@ -393,7 +396,7 @@ function renderCameraView(w, h) {
     let tempDT = dT;
     while (j < h && numOfSteps < maxNumOfSteps) {
       numOfSteps++;
-      if (nextDist - curDist < tempDT) {
+      if (renderMode == 1 && nextDist - curDist < tempDT) {
         tempDT = nextDist - curDist;
       }
       //tempDT = min(tempDT, nextDist - curDist);
@@ -417,7 +420,9 @@ function renderCameraView(w, h) {
 
         j++;
         nextDist = camera.getDistToIntersectionPoint(x, j);
-        tempDT = Math.sqrt(nextDist - curDist); // Подсмотрел
+        if (renderMode == 1) {
+          tempDT = Math.sqrt(nextDist - curDist); // Подсмотрел
+        }
       }
     }
 
@@ -570,6 +575,14 @@ window.addEventListener('keydown', (event) => {
       renderCameraViewOld1(canvas.width, renderY);
       break;
 
+    case '1':
+      renderMode = 1;
+      break;
+
+    case '2':
+      renderMode = 2;
+      break;
+
     default:
       // Игнорируем все остальные клавиши
       return;
@@ -616,9 +629,7 @@ function animate() {
   // Очищаем холст
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  renderCameraView(canvas.width, canvas.height / 2);
-  //renderCameraView(canvas.width, canvas.height);
-  //renderCameraView(canvas.width, 100);
+  renderCameraView(canvas.width, canvas.height / 2); // Оказывается, быстрее рисуется, если рисовать здесь, а не при движении
 
   // TODO: выводить текстуру, чтобы было видно, где находимся в плоскости (u, v)
   //renderSurfaceTexture(canvas.width, canvas.height);
