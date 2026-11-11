@@ -23,7 +23,10 @@ let distToScreen = 0.5;
 let dDistToScreen = 0.1;
 // Число геодезических, которые будут отрисовываны на 3D изображении
 const numOfGeodesicLines = 1;
-let deltaFovAngleGeodesics = fov_angle / numOfGeodesicLines;
+// Угол в проекции на касательную плоскость между соседними пикселями с вершиной в камере
+let dAngle = fov_angle / RENDER_W;
+// Угол в проекции на касательную плоскость между геодезическими
+let dAngleGeodesics = fov_angle / numOfGeodesicLines;
 
 // Кажется, это должна быть внутренняя структура, связанная только с камерой, 
 // и ширина/высота должны рассчитывать только исходя из расстояния до экрана + угла обзора 
@@ -208,7 +211,7 @@ function calculateGeodesics(w, h) {
   let view_norm = vec_view.norm();
   let i = 0;
 
-  let angle = -(numOfGeodesicLines - 1) / 2 * deltaFovAngleGeodesics;
+  let angle = -(numOfGeodesicLines - 1) / 2 * dAngleGeodesics;
   for (let k = 0; k < numOfGeodesicLines; k++) { // Столбец
     // Растягиваем пропорционально углу отставания от вектора взгляда (в касательной плоскости)
     // UPD: НЕ растягиваем
@@ -253,7 +256,7 @@ function calculateGeodesics(w, h) {
     // Сообщаем Three.js, что данные в буфере изменились, и их надо отправить на GPU.
     lineGeometries[k].attributes.position.needsUpdate = true;
     i += w / numOfGeodesicLines;
-    angle += deltaFovAngleGeodesics;
+    angle += dAngleGeodesics;
   }
 }
 
@@ -367,24 +370,18 @@ function renderCameraView(w, h) {
   let vec_e1 = camera.e1;
   let vec_ru = camera.r_u;
   let vec_rv = camera.r_v;
-  let u = camera.u;
-  let v = camera.v;
-  let view_norm = vec_view.norm();
 
-  let diff_vec = vec_e1.mul(view_norm * Math.tan(angle));
-  let tmp_vec_view = vec_view.add(diff_vec);
+  let tmp_vec_view = vec_view
   let tmp_vec_view_decomp = vectors.decomposition(tmp_vec_view, vec_ru, vec_rv);
   let stride = 0;
-  let x = 0;
   let j = 0;
 
-  for (x = 0; x < w; x++) {
-    let diff_vec = vec_e1.mul(view_norm * Math.tan(angle));
-    let tmp_vec_view = vec_view.add(diff_vec).normalize();
+  for (let x = 0; x < w; x++) {
+    tmp_vec_view = vec_view.mul(Math.cos(angle)).add(vec_e1.mul(Math.sin(angle)));
+    tmp_vec_view_decomp = vectors.decomposition(tmp_vec_view, vec_ru, vec_rv);
 
-    let tmp_vec_view_decomp = vectors.decomposition(tmp_vec_view, vec_ru, vec_rv);
-    cameraRayState[0] = u;
-    cameraRayState[1] = v;
+    cameraRayState[0] = camera.u;
+    cameraRayState[1] = camera.v;
     cameraRayState[2] = tmp_vec_view_decomp[0];
     cameraRayState[3] = tmp_vec_view_decomp[1];
 
@@ -407,7 +404,6 @@ function renderCameraView(w, h) {
       if (curDist >= nextDist) {
         // Индекс первого цветового канала пикселя
         // TODO: мб неправильно и всё перевёрнуто/отражено
-
         stride = ((canvas.height - j) * w + x) * 4;
 
         let normalizeCoordinates = surface.normalizeCoordinates(cameraRayState[0], cameraRayState[1]);
@@ -462,17 +458,11 @@ const ctx = canvas.getContext('2d');
 // Создаём пустое изображение
 let image = ctx.createImageData(canvas.width, canvas.height);
 
-let dAngle = fov_angle / canvas.width;
 // Подгоняем размер 2D-холста под размер его окна
-function resizeCanvas() {
-  canvas.width = RENDER_W;
-  canvas.height = RENDER_H;
-
-  image = ctx.createImageData(canvas.width, canvas.height);
-  screen.setSizes(screenWidth, screenHeight, canvas.width, canvas.height);
-  dAngle = fov_angle / canvas.width;
-}
-resizeCanvas();
+canvas.width = RENDER_W;
+canvas.height = RENDER_H;
+image = ctx.createImageData(canvas.width, canvas.height);
+screen.setSizes(screenWidth, screenHeight, canvas.width, canvas.height);
 
 // --- 3. ИНТЕРАКТИВНОСТЬ ---
 // При движении мыши над левым окном мы обновляем глобальные координаты
@@ -487,11 +477,11 @@ window.addEventListener('resize', () => {
   threeCamera.aspect = (window.innerWidth / 2) / window.innerHeight;
   threeCamera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth / 2, window.innerHeight);
-  resizeCanvas();
+  //resizeCanvas();
   renderY = canvas.height / 2;
   //geodesicPointsCount = Math.floor(canvas.height / 2);
   //initGeodesicArrays();
-  calculateGeodesics();
+  //calculateGeodesics();
 });
 
 let renderY = canvas.height / 2;
@@ -529,7 +519,7 @@ window.addEventListener('keydown', (event) => {
 
     case 'e':
       fov_angle += dAngleWidening;
-      deltaFovAngleGeodesics = fov_angle / numOfGeodesicLines;
+      dAngleGeodesics = fov_angle / numOfGeodesicLines;
       dAngle = fov_angle / canvas.width;
       calculateGeodesics(canvas.width, renderY);
       //renderCameraView(canvas.width, renderY);
@@ -537,7 +527,7 @@ window.addEventListener('keydown', (event) => {
 
     case 'q':
       fov_angle -= dAngleWidening;
-      deltaFovAngleGeodesics = fov_angle / numOfGeodesicLines;
+      dAngleGeodesics = fov_angle / numOfGeodesicLines;
       dAngle = fov_angle / canvas.width;
       calculateGeodesics(canvas.width, renderY);
       //renderCameraView(canvas.width, renderY);
@@ -596,7 +586,7 @@ window.addEventListener('keydown', (event) => {
   event.preventDefault();
 });
 
-geodesicPointsCount = RENDER_H;
+geodesicPointsCount = canvas.height / 2;
 initGeodesicArrays(); // Начальная инициализация геодезических линий на 3д картинке
 calculateGeodesics(canvas.width, canvas.height / 2); // начальный расчёт геодезических
 
