@@ -22,7 +22,7 @@ let fov_angle = Math.PI * fov_angle_degrees / 180.0;
 let distToScreen = 0.5;
 let dDistToScreen = 0.1;
 // Число геодезических, которые будут отрисовываны на 3D изображении
-const numOfGeodesicLines = 1;
+const numOfGeodesicLines = 5;
 // Угол в проекции на касательную плоскость между соседними пикселями с вершиной в камере
 let dAngle = fov_angle / RENDER_W;
 // Угол в проекции на касательную плоскость между геодезическими
@@ -39,8 +39,14 @@ const dZ = 0.01;
 const cameraZ = 0.1;
 const planeLength = 10;
 const planeWidth = 10;
-const surface = new surfaces.Sphere();
+const sphereR = 10;
+const ellipsoidRX = 10;
+const ellipsoidRY = 5;
+const ellipsoidRZ = 5;
+//const surface = new surfaces.Sphere();
+//const surface = new surfaces.SphereR(sphereR);
 //const surface = new surfaces.Plane(planeLength, planeWidth);
+const surface = new surfaces.Ellipsoid(ellipsoidRX, ellipsoidRY, ellipsoidRZ);
 const camera = new cameras.Camera(fov_angle, distToScreen, screen, surface, cameraZ);
 camera.setCoords(0, 0.1);
 
@@ -112,10 +118,23 @@ const sphereMesh = new THREE.Mesh(sphereGeometry, surfaceMaterial);
 
 const planeGeometry = new THREE.PlaneGeometry(planeLength, planeWidth);
 const planeMesh = new THREE.Mesh(planeGeometry, surfaceMaterial);
-planeMesh.position.set(planeLength / 2, planeWidth / 2, 0);
+planeMesh.position.set(planeLength / 2, planeWidth / 2, 0); // Центрируем
 
-scene.add(sphereMesh);
+const sphereRGeometry = new THREE.SphereGeometry(sphereR, 64, 64);
+sphereRGeometry.rotateX(Math.PI / 2); // Нужно для того, чтобы полюса были на оси z.
+sphereRGeometry.rotateZ(Math.PI); // Образ нулевого столбца текстуры будет лежать в плоскости xOz
+const sphereRMesh = new THREE.Mesh(sphereRGeometry, surfaceMaterial);
+
+const ellipsoidGeometry = new THREE.SphereGeometry(1, 64, 64);
+ellipsoidGeometry.rotateX(Math.PI / 2);
+sphereGeometry.rotateZ(Math.PI);
+ellipsoidGeometry.scale(ellipsoidRX, ellipsoidRY, ellipsoidRZ);
+const ellipsoidMesh = new THREE.Mesh(ellipsoidGeometry, surfaceMaterial);
+
+//scene.add(sphereMesh);
 //scene.add(planeMesh);
+//scene.add(sphereRMesh);
+scene.add(ellipsoidMesh);
 
 // Камера на поверхности
 const playerGeometry = new THREE.SphereGeometry(0.03, 16, 16);
@@ -208,17 +227,13 @@ function calculateGeodesics(w, h) {
   let vec_rv = camera.r_v;
   let u = camera.u;
   let v = camera.v;
-  let view_norm = vec_view.norm();
   let i = 0;
 
   let angle = -(numOfGeodesicLines - 1) / 2 * dAngleGeodesics;
   for (let k = 0; k < numOfGeodesicLines; k++) { // Столбец
-    // Растягиваем пропорционально углу отставания от вектора взгляда (в касательной плоскости)
-    // UPD: НЕ растягиваем
-    let diff_vec = vec_e1.mul(view_norm * Math.tan(angle));
-    let tmp_vec_view = vec_view.add(diff_vec).normalize();
-
+    let tmp_vec_view = vec_view.mul(Math.cos(angle)).add(vec_e1.mul(Math.sin(angle)));
     let tmp_vec_view_decomp = vectors.decomposition(tmp_vec_view, vec_ru, vec_rv);
+
     let currentRayState = [u, v, tmp_vec_view_decomp[0], tmp_vec_view_decomp[1]];
 
     // Берем заранее выделенный плоский массив для этой линии
@@ -230,8 +245,13 @@ function calculateGeodesics(w, h) {
     let numOfSteps = 0;
 
     let tempDT = dT;
-    while (numOfSteps < maxNumOfSteps) {
+    while (j < h && numOfSteps < maxNumOfSteps) {
+      numOfSteps++;
+      if (renderMode == 1 && nextDist - curDist < tempDT) {
+        tempDT = nextDist - curDist;
+      }
       calculations.rk4StepInPlace(currentRayState, tempDT, surface, k1Geo, k2Geo, k3Geo, k4Geo);
+
       curDist += tempDT;
 
       if (curDist >= nextDist) {
@@ -240,17 +260,15 @@ function calculateGeodesics(w, h) {
         positions[stride] = coords[0]; // X
         positions[stride + 1] = coords[1]; // Y
         positions[stride + 2] = coords[2]; // Z
-        j++;
-        if (j == h) {
-          //tempDT *= 1.2; // Эвристика, мб можно более эффективно
-          break;
-        }
 
+        j++;
         nextDist = camera.getDistToIntersectionPoint(i, j);
+        if (renderMode == 1) {
+          tempDT = Math.sqrt(nextDist - curDist); // Подсмотрел
+        }
       }
 
       // Тут же можно проверять пересечение луча со стенами/объектами
-      numOfSteps++;
     }
 
     // Сообщаем Three.js, что данные в буфере изменились, и их надо отправить на GPU.
@@ -371,7 +389,7 @@ function renderCameraView(w, h) {
   let vec_ru = camera.r_u;
   let vec_rv = camera.r_v;
 
-  let tmp_vec_view = vec_view
+  let tmp_vec_view = vec_view;
   let tmp_vec_view_decomp = vectors.decomposition(tmp_vec_view, vec_ru, vec_rv);
   let stride = 0;
   let j = 0;
@@ -396,7 +414,6 @@ function renderCameraView(w, h) {
       if (renderMode == 1 && nextDist - curDist < tempDT) {
         tempDT = nextDist - curDist;
       }
-      //tempDT = min(tempDT, nextDist - curDist);
       calculations.rk4StepInPlace(cameraRayState, tempDT, surface, k1, k2, k3, k4);
 
       curDist += tempDT;

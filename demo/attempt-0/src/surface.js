@@ -1,10 +1,6 @@
 import { Vec } from './vector.js';
 import * as vectors from './vector.js';
 
-class GammaMatrix {
-
-}
-
 // Базовый класс для поверхностей
 export class Surface2D {
     normalizeCoordinates(u, v) {
@@ -58,10 +54,8 @@ export class Surface2D {
         let g = this.G(u, v);
         let det = g[0][0] * g[1][1] - g[0][1] ** 2;
         return [
-            [
-                [g[1][1] / det, -g[0][1] / det],
-                [-g[1][0] / det, g[0][0] / det],
-            ]
+            [g[1][1] / det, -g[0][1] / det],
+            [-g[1][0] / det, g[0][0] / det],
         ];
     }
 
@@ -167,33 +161,20 @@ export class Surface2D {
         let v11 = x_vv * x_v + y_vv * y_v + z_vv * z_v;
 
         return {
-            k0_00: g_inv[0][0] * u00 + g_inv[0][1] * v00, 
-            k0_01: g_inv[1][0] * u00 + g_inv[1][1] * v00, 
-            k0_10: g_inv[0][0] * u01 + g_inv[0][1] * v01, 
-            k0_11: g_inv[1][0] * u01 + g_inv[1][1] * v01, 
-            k1_00: g_inv[0][0] * u10 + g_inv[0][1] * v10, 
-            k1_01: g_inv[1][0] * u10 + g_inv[1][1] * v10, 
-            k1_10: g_inv[0][0] * u11 + g_inv[0][1] * v11, 
+            k0_00: g_inv[0][0] * u00 + g_inv[0][1] * v00,
+            k0_01: g_inv[1][0] * u00 + g_inv[1][1] * v00,
+            k0_10: g_inv[0][0] * u01 + g_inv[0][1] * v01,
+            k0_11: g_inv[1][0] * u01 + g_inv[1][1] * v01,
+            k1_00: g_inv[0][0] * u10 + g_inv[0][1] * v10,
+            k1_01: g_inv[1][0] * u10 + g_inv[1][1] * v10,
+            k1_10: g_inv[0][0] * u11 + g_inv[0][1] * v11,
             k1_11: g_inv[1][0] * u11 + g_inv[1][1] * v11,
         };
     }
 
 }
 
-/*
-        let s0_00 = 0;
-        let s0_01 = 1;
-        let s0_10 = 0;
-        let s0_11 = 1;
-        let s1_00 = 0;
-        let s1_01 = 1;
-        let s1_10 = 0;
-        let s1_11 = 1;
-
-        return {s0_00, s0_01, s0_10, s0_11, s1_00, s1_01, s1_10, s1_11};
-*/
-
-// Класс Сферы, наследующий Surface2D
+// Сфера
 export class Sphere extends Surface2D {
     normalizeCoordinates(u, v) {
         let uNorm = (u % (2 * Math.PI)) / (2 * Math.PI);
@@ -303,14 +284,281 @@ export class Sphere extends Surface2D {
 
     G_inverse(u, v) {
         // 0.000001 - костыль для избежания деления на 0
+        if (v == 0) {
+            return [
+                [1, 0],
+                [0, 1],
+            ];
+        }
         return [
-            [1 / (Math.sin(v + 0.000001) ** 2), 0],
+            [1 / (Math.sin(v) ** 2), 0],
             [0, 1],
         ];
     }
 
 }
 
+// Сфера с радиусом R (решил не портить просто Sphere)
+export class SphereR extends Surface2D {
+    constructor(r) {
+        super();
+
+        this.r = r;
+    }
+
+    normalizeCoordinates(u, v) {
+        let uNorm = (u % (2 * Math.PI)) / (2 * Math.PI);
+        if (uNorm < 0) uNorm += 1;
+
+        let vNorm = (v % Math.PI) / Math.PI;
+        if (vNorm < 0) vNorm += 1;
+
+        return { uNorm, vNorm }
+    }
+
+    X(u, v) {
+        return this.r * Math.cos(u) * Math.sin(v);
+    }
+
+    Y(u, v) {
+        return this.r * Math.sin(u) * Math.sin(v)
+    }
+
+    Z(u, v) {
+        return this.r * Math.cos(v)
+    }
+
+    // Частные производные по u
+    Xu(u, v) {
+        return this.r * -Math.sin(u) * Math.sin(v)
+    }
+
+    Yu(u, v) {
+        return this.r * Math.cos(u) * Math.sin(v)
+    }
+
+    Zu(u, v) {
+        return 0
+    }
+
+    // Частные производные по v
+    Xv(u, v) {
+        return this.r * Math.cos(u) * Math.cos(v)
+    }
+
+    Yv(u, v) {
+        return this.r * Math.sin(u) * Math.cos(v)
+    }
+
+    Zv(u, v) {
+        return this.r * -Math.sin(v)
+    }
+
+    // Вторые частные производные по u
+    Xuu(u, v) {
+        return this.r * -Math.cos(u) * Math.sin(v)
+    }
+
+    Yuu(u, v) {
+        return this.r * -Math.sin(u) * Math.sin(v)
+    }
+
+    Zuu(u, v) {
+        return 0
+    }
+
+    Xvu(u, v) {
+        return this.r * -Math.sin(u) * Math.cos(v)
+    }
+
+    Yvu(u, v) {
+        return this.r * Math.cos(u) * Math.cos(v)
+    }
+
+    Zvu(u, v) {
+        return 0
+    }
+
+    // Вторые частные производные по v
+    Xuv(u, v) {
+        return this.r * -Math.sin(u) * Math.cos(v);
+    }
+
+    Yuv(u, v) {
+        return this.r * Math.cos(u) * Math.cos(v);
+    }
+
+    Zuv(u, v) {
+        return 0;
+    }
+
+    Xvv(u, v) {
+        return this.r * -Math.cos(u) * Math.sin(v);
+    }
+
+    Yvv(u, v) {
+        return this.r * -Math.sin(u) * Math.sin(v);
+    }
+
+    Zvv(u, v) {
+        return this.r * -Math.cos(v);
+    }
+
+    G(u, v) {
+        return [
+            [this.r ** 2 * Math.sin(v) ** 2, 0],
+            [0, this.r ** 2],
+        ];
+    }
+
+    G_inverse(u, v) {
+        // 0.000001 - костыль для избежания деления на 0
+        if (v % Math.PI == 0) {
+            return [
+                [1 / this.r ** 2, 0],
+                [0, 1 / this.r ** 2],
+            ];
+        }
+        return [
+            [1 / (this.r ** 2 * Math.sin(v) ** 2), 0],
+            [0, 1 / this.r ** 2],
+        ];
+    }
+
+}
+
+// Эллипсоид
+export class Ellipsoid extends Surface2D {
+    constructor(rX, rY, rZ) {
+        super();
+
+        this.rX = rX;
+        this.rY = rY;
+        this.rZ = rZ;
+    }
+
+    normalizeCoordinates(u, v) { // TODO: нужны ли тут изменения? Вроде, нет
+        let uNorm = (u % (2 * Math.PI)) / (2 * Math.PI);
+        if (uNorm < 0) uNorm += 1;
+
+        let vNorm = (v % Math.PI) / Math.PI;
+        if (vNorm < 0) vNorm += 1;
+
+        return { uNorm, vNorm }
+    }
+
+    X(u, v) {
+        return this.rX * Math.cos(u) * Math.sin(v);
+    }
+
+    Y(u, v) {
+        return this.rY * Math.sin(u) * Math.sin(v);
+    }
+
+    Z(u, v) {
+        return this.rZ * Math.cos(v);
+    }
+
+    // Частные производные по u
+    Xu(u, v) {
+        return this.rX * -Math.sin(u) * Math.sin(v);
+    }
+
+    Yu(u, v) {
+        return this.rY * Math.cos(u) * Math.sin(v);
+    }
+
+    Zu(u, v) {
+        return 0;
+    }
+
+    // Частные производные по v
+    Xv(u, v) {
+        return this.rX * Math.cos(u) * Math.cos(v);
+    }
+
+    Yv(u, v) {
+        return this.rY * Math.sin(u) * Math.cos(v);
+    }
+
+    Zv(u, v) {
+        return this.rZ * -Math.sin(v);
+    }
+
+    // Вторые частные производные по u
+    Xuu(u, v) {
+        return this.rX * -Math.cos(u) * Math.sin(v);
+    }
+
+    Yuu(u, v) {
+        return this.rY * -Math.sin(u) * Math.sin(v);
+    }
+
+    Zuu(u, v) {
+        return 0
+    }
+
+    Xvu(u, v) {
+        return this.rX * -Math.sin(u) * Math.cos(v);
+    }
+
+    Yvu(u, v) {
+        return this.rY * Math.cos(u) * Math.cos(v);
+    }
+
+    Zvu(u, v) {
+        return 0;
+    }
+
+    // Вторые частные производные по v
+    Xuv(u, v) {
+        return this.rX * -Math.sin(u) * Math.cos(v);
+    }
+
+    Yuv(u, v) {
+        return this.rY * Math.cos(u) * Math.cos(v);
+    }
+
+    Zuv(u, v) {
+        return 0;
+    }
+
+    Xvv(u, v) {
+        return this.rX * -Math.cos(u) * Math.sin(v);
+    }
+
+    Yvv(u, v) {
+        return this.rY * -Math.sin(u) * Math.sin(v);
+    }
+
+    Zvv(u, v) {
+        return this.rZ * -Math.cos(v);
+    }
+
+    // TODO: посчитать самому (правда, мб это не сильно поможет для вычислений)
+    G(u, v) {
+        let su = Math.sin(u), cu = Math.cos(u), sv = Math.sin(v), cv = Math.cos(v);
+        let g_uv = cu * sv * su * sv * (this.rY ** 2 - this.rX ** 2);
+
+        return [
+            [sv ** 2 * (this.rX ** 2 * su ** 2 + this.rY ** 2 * cu ** 2), g_uv],
+            [g_uv, this.rX ** 2 * cu ** 2 * cv ** 2 + this.rY ** 2 * su ** 2 * cv ** 2 + this.rZ ** 2 * sv ** 2],
+        ];
+    }
+
+    G_inverse(u, v) {
+        let g = this.G(u, v);
+        let det = g[0][0] * g[1][1] - g[0][1] ** 2;
+        if (v % Math.PI == 0) {
+            det = 1;
+        }
+        return [
+            [g[1][1] / det, -g[0][1] / det],
+            [-g[1][0] / det, g[0][0] / det],
+        ];
+    }
+
+}
 
 // Плоскость
 export class Plane extends Surface2D {
